@@ -1,0 +1,21 @@
+# Runtime data and secrets
+data/*
+!data/.htaccess
+
+# Site packaging output
+*.zip
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+

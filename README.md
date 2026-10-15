@@ -1,0 +1,45 @@
+# K-QCENTER
+
+แพลตฟอร์มบริหารจัดการคิวส่วนกลาง โดยมี **K-QOnline** เป็น Mobile App สำหรับประชาชน และทำงานร่วมกับระบบหลังบ้าน เคาน์เตอร์บริการ และจอแสดงผล
+
+เอกสารข้อกำหนดและสถาปัตยกรรมฉบับหลัก:
+
+- [K-QCENTER System Specification](docs/K-QCENTER-SYSTEM-SPEC.md)
+
+## เปิดระบบต้นแบบ
+
+เมื่อใช้ XAMPP/Apache เปิดได้ที่:
+
+```text
+http://localhost/k-qcenter/
+```
+
+ระบบต้องเปิดผ่าน Apache/PHP ไม่ควรเปิด `dist/index.html` โดยตรง เพราะหน้า Admin ใช้ Session และ API ฝั่งเซิร์ฟเวอร์
+
+เมื่อเปิดครั้งแรก ระบบจะสร้างฐานข้อมูล SQLite และแสดงหน้าสร้างบัญชีผู้ดูแล ให้ใช้รหัสผ่านอย่างน้อย 10 ตัวอักษร จากนั้นข้อมูลสาขา แผนก บริการ Slot การจอง และ Audit log จะถูกบันทึกใน `data/kqcenter.sqlite`
+
+โฟลเดอร์ที่ใช้ให้บริการหน้าเว็บคือ `dist/` และสามารถนำพอร์ตของ Apache ออก HTTPS ผ่าน Tailscale Serve สำหรับหลังบ้านได้
+
+## Backend API
+
+API อยู่ที่ `api/index.php` และรองรับส่วนหลักแล้ว:
+
+- First-run setup และ Session login
+- Dashboard
+- สาขา แผนก และประเภทบริการ
+- สร้าง Slot อัตโนมัติตามเวลาเปิด–ปิดและ Closing buffer
+- คำนวณ Capacity ตามช่องบริการ เวลาเฉลี่ย และ Efficiency
+- Booking transaction พร้อมตรวจ Capacity
+- Idempotency key ป้องกันการจองซ้ำ
+- ปรับ Capacity ของ Slot
+- Audit log
+
+SQLite เหมาะกับระบบ Pilot บนเครื่องเดียว ก่อนใช้งานหลายสาขาหรือมีทราฟฟิกสูงควรย้าย database adapter ไป MariaDB/PostgreSQL และทดสอบโหลดเพิ่มเติม
+
+มาตรฐานร่วมของทุกระบบ:
+
+- ใช้ฟอนต์ **Sarabun** ทั้งระบบ
+- แสดงวันที่ด้วยปฏิทินไทยและปี **พ.ศ.**
+- ใช้เขตเวลา **Asia/Bangkok (UTC+7)** สำหรับการแสดงผลและกฎเวลาทำการ
+- K-QCENTER เป็นแหล่งข้อมูลและผู้ควบคุมสถานะคิวเพียงระบบเดียว
+

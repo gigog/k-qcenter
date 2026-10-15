@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="K-QCENTER ระบบบริหารจัดการคิวส่วนกลาง">
+  <title>K-QCENTER — ศูนย์บริหารจัดการคิว</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">KQ</div>
+        <div><strong>K-QCENTER</strong><span>Queue Operations</span></div>
+      </div>
+
+      <nav class="nav" aria-label="เมนูหลัก">
+        <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span><span>ภาพรวม</span></button>
+        <button class="nav-item" data-view="queues"><span class="nav-icon">Q</span><span>คิววันนี้</span><span class="nav-count">12</span></button>
+        <button class="nav-item" data-view="capacity"><span class="nav-icon">▦</span><span>Slot และกำลังบริการ</span></button>
+        <button class="nav-item" data-view="branches"><span class="nav-icon">⌘</span><span>สาขาและแผนก</span></button>
+        <button class="nav-item" data-view="services"><span class="nav-icon">≡</span><span>ประเภทบริการ</span></button>
+        <button class="nav-item" data-view="calendar"><span class="nav-icon">□</span><span>ปฏิทินทำการ</span></button>
+        <div class="nav-label">ระบบ</div>
+        <button class="nav-item" data-view="connections"><span class="nav-icon">↔</span><span>การเชื่อมต่อ</span></button>
+        <button class="nav-item" data-view="users"><span class="nav-icon">♙</span><span>ผู้ใช้และสิทธิ์</span></button>
+        <button class="nav-item" data-view="audit"><span class="nav-icon">◷</span><span>ประวัติการใช้งาน</span></button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="server-state"><i></i><div><strong>ระบบทำงานปกติ</strong><span>เชื่อมต่อ 10.9.1.22</span></div></div>
+        <div class="version">K-QCENTER · v0.1 Pilot</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button mobile-only" id="menuButton" aria-label="เปิดเมนู">☰</button>
+        <div class="page-heading">
+          <p id="todayText">กำลังโหลดวันที่...</p>
+          <h1 id="pageTitle">ภาพรวมระบบ</h1>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button notification" aria-label="การแจ้งเตือน">♢<b>3</b></button>
+          <div class="profile">
+            <div class="avatar">กส</div>
+            <div><strong>กิตติศักดิ์ สมบูรณ์</strong><span>ผู้ดูแลระบบ</span></div>
+            <span class="chevron">⌄</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="content" id="dashboardView">
+        <div class="hero-card">
+          <div>
+            <span class="eyebrow">สถานการณ์วันนี้</span>
+            <h2>สวัสดีตอนเย็น ทีมบริการ</h2>
+            <p>ภาพรวมคิวทุกแผนกยังอยู่ในกำลังรองรับ คิวสุดท้ายคาดว่าจะเสร็จก่อนปิดทำการ 42 นาที</p>
+          </div>
+          <div class="hero-score"><span>ความหนาแน่น</span><strong>68%</strong><small>อยู่ในเกณฑ์ปกติ</small></div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="metric-card"><div class="metric-icon blue">Q</div><div class="metric-label">คิวทั้งหมดวันนี้ <span class="trend up">↑ 8%</span></div><strong>148</strong><small>ออนไลน์ 104 · Walk-in 44</small></article>
+          <article class="metric-card"><div class="metric-icon green">✓</div><div class="metric-label">ให้บริการแล้ว <span class="trend up">72%</span></div><strong>107</strong><small>เหลืออีก 41 คิว</small></article>
+          <article class="metric-card"><div class="metric-icon amber">◷</div><div class="metric-label">เวลารอเฉลี่ย <span class="trend down">↓ 4 นาที</span></div><strong>18 <em>นาที</em></strong><small>เป้าหมายไม่เกิน 25 นาที</small></article>
+          <article class="metric-card"><div class="metric-icon violet">▥</div><div class="metric-label">ช่องบริการ</div><strong>9<span class="muted-total">/12</span></strong><small>เปิดใช้งาน 9 ช่อง</small></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel flow-panel">
+            <div class="panel-head"><div><h3>ปริมาณคิวรายชั่วโมง</h3><p>เปรียบเทียบคิวรับเข้าและให้บริการแล้ว</p></div><div class="legend"><span><i class="dot blue-dot"></i>รับเข้า</span><span><i class="dot green-dot"></i>เสร็จสิ้น</span></div></div>
+            <div class="chart" id="queueChart" aria-label="กราฟปริมาณคิวรายชั่วโมง"></div>
+          </article>
+
+          <article class="panel now-panel">
+            <div class="panel-head"><div><h3>สถานะขณะนี้</h3><p>อัปเดตอัตโนมัติ</p></div><span class="live-pill"><i></i> LIVE</span></div>
+            <div class="queue-now">
+              <div class="now-ring"><div><strong>12</strong><span>กำลังรอ</span></div></div>
+              <div class="now-stats"><div><span>กำลังให้บริการ</span><strong>9</strong></div><div><span>เรียกแล้ว</span><strong>3</strong></div><div><span>มาสาย</span><strong>2</strong></div></div>
+            </div>
+            <button class="primary wide" data-jump="queues">เปิดหน้าควบคุมคิว <span>→</span></button>
+          </article>
+        </div>
+
+        <div class="dashboard-grid lower">
+          <article class="panel">
+            <div class="panel-head"><div><h3>กำลังบริการตามแผนก</h3><p>Slot ปัจจุบัน 17:00–17:30 น.</p></div><button class="text-button" data-jump="capacity">จัดการ Slot →</button></div>
+            <div class="department-list" id="departmentList"></div>
+          </article>
+          <article class="panel closing-panel">
+            <div class="panel-head"><div><h3>คาดการณ์ก่อนปิดทำการ</h3><p>ปิดบริการเวลา 20:00 น.</p></div><div class="status-badge success">ทันเวลา</div></div>
+            <div class="closing-time"><span>คิวสุดท้ายคาดว่าเสร็จ</span><strong>19:18 <small>น.</small></strong><p>เหลือเวลาสำรอง 42 นาที</p></div>
+            <div class="timeline"><i style="width:76%"></i><b style="left:76%"></b></div>
+            <div class="timeline-labels"><span>08:30</span><span>ขณะนี้ 17:42</span><span>20:00</span></div>
+            <div class="insight">ระบบแนะนำให้เปิดรับออนไลน์ได้อีก <strong>8 คิว</strong> ในวันนี้</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="content hidden" id="genericView">
+        <div id="viewContent"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="auth-gate" id="authGate">
+    <form class="auth-card" id="authForm">
+      <div class="auth-brand"><div class="brand-mark">KQ</div><div><strong>K-QCENTER</strong><span>ระบบบริหารจัดการคิว</span></div></div>
+      <span class="eyebrow" id="authEyebrow">เข้าสู่ระบบ</span>
+      <h2 id="authTitle">ยินดีต้อนรับกลับ</h2>
+      <p id="authDescription">กรอกบัญชีผู้ดูแลเพื่อเข้าสู่ระบบหลังบ้าน</p>
+      <label class="setup-only hidden">ชื่อผู้ดูแล<input id="displayName" autocomplete="name"></label>
+      <label>ชื่อผู้ใช้<input id="authUsername" autocomplete="username" required minlength="3"></label>
+      <label>รหัสผ่าน<input id="authPassword" type="password" autocomplete="current-password" required minlength="10"></label>
+      <div class="auth-error hidden" id="authError"></div>
+      <button class="primary" id="authSubmit" type="submit">เข้าสู่ระบบ</button>
+      <small>การเชื่อมต่อถูกป้องกันด้วย Session และ HttpOnly cookie</small>
+    </form>
+  </div>
+  <div class="modal-backdrop hidden" id="modalBackdrop">
+    <form class="modal" id="slotForm">
+      <div class="modal-head"><div><span class="eyebrow">ตั้งค่ากำลังบริการ</span><h2>ปรับ Slot แผนกทะเบียน</h2></div><button type="button" class="icon-button" id="closeModal">×</button></div>
+      <div class="form-grid">
+        <label>เวลาเริ่ม<input type="time" value="17:00" required></label>
+        <label>เวลาสิ้นสุด<input type="time" value="17:30" required></label>
+        <label>ช่องบริการ<input id="counterInput" type="number" min="1" max="20" value="4" required></label>
+        <label>เวลาเฉลี่ยต่อคิว<input id="durationInput" type="number" min="1" value="15" required><span>นาที</span></label>
+        <label>ประสิทธิภาพ<select id="efficiencyInput"><option value="0.7">70%</option><option value="0.8" selected>80%</option><option value="0.9">90%</option></select></label>
+        <label>โควตาออนไลน์<input type="number" min="0" max="100" value="70" required><span>%</span></label>
+      </div>
+      <div class="calculation"><span>Capacity ที่แนะนำ</span><strong id="capacityResult">6 คิว</strong><small>คำนวณจากระยะเวลา ช่องบริการ และประสิทธิภาพ</small></div>
+      <div class="modal-actions"><button type="button" class="secondary" id="cancelModal">ยกเลิก</button><button class="primary" type="submit">บันทึกการตั้งค่า</button></div>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>
