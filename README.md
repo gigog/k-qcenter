@@ -5,6 +5,7 @@
 เอกสารข้อกำหนดและสถาปัตยกรรมฉบับหลัก:
 
 - [K-QCENTER System Specification](docs/K-QCENTER-SYSTEM-SPEC.md)
+- [คู่มือ Deploy และอัปเดตบน Windows/XAMPP](docs/DEPLOYMENT-WINDOWS.md)
 
 ## เปิดระบบต้นแบบ
 
