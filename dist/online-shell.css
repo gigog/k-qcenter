@@ -1,3 +1,4 @@
 .public-shell{padding-top:calc(78px + env(safe-area-inset-top))}
 .public-head{position:fixed;inset:0 0 auto 0;z-index:75;min-height:78px;padding-top:calc(14px + env(safe-area-inset-top));padding-bottom:14px;background:#08aa9a;border-radius:0!important;box-shadow:0 8px 24px rgba(8,126,116,.18)}
 @media(max-width:650px){.public-head{min-height:72px}.public-shell{padding-top:calc(72px + env(safe-area-inset-top))}}
+.scanner-card{width:min(500px,100%)}.status-camera{position:relative;overflow:hidden;min-height:260px;border-radius:18px;background:#092d31;margin:15px 0}.status-camera video{display:block;width:100%;min-height:260px;object-fit:cover}.scan-frame{position:absolute;inset:38px;border:3px solid #5ce0a3;border-radius:22px;box-shadow:0 0 0 999px rgba(3,30,33,.34);pointer-events:none}.scan-symbol{font-size:24px}
