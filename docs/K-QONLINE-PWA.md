@@ -2,6 +2,8 @@
 
 K-QOnline ใช้รูปแบบ Progressive Web App (PWA) เพื่อให้ผู้รับบริการติดตั้งจากหน้า HTTPS ลงบนหน้าจอหลักของ Android, iPhone และ iPad ได้ โดยยังใช้ K-QCENTER API เป็นแหล่งข้อมูล Slot, Capacity, Booking และสถานะคิวเพียงแห่งเดียว
 
+K-QOnline ไม่ต้อง Login ด้วยบัญชีเจ้าหน้าที่ ผู้รับบริการกรอกข้อมูลที่จำเป็นต่อการจองและได้รับรหัส Public ID/QR สำหรับติดตามคิว โดย Public ID ต้องไม่เปิดเผยข้อมูลส่วนบุคคลเกินความจำเป็น
+
 ## ขอบเขต
 
 - เปิดจากไอคอนบนหน้าจอหลักในโหมดแอปแบบเต็มหน้าจอ
@@ -36,6 +38,18 @@ Safari ไม่ส่งเหตุการณ์ติดตั้งแบ�
 Service worker เก็บเฉพาะ HTML, CSS, JavaScript, manifest และไอคอนของแอป ไม่เก็บคำขอ API ไว้ใน cache และไม่จัดคิวคำขอจองเพื่อส่งภายหลัง การออกแบบนี้ป้องกันการสร้างคิวจากข้อมูล Capacity ที่หมดอายุและรักษา idempotency/transaction ไว้ที่ K-QCENTER API
 
 หน้า Admin, Counter, ฐานข้อมูล และบริการภายในไม่รวมอยู่ใน PWA สาธารณะ และต้องไม่เปิดผ่าน Tailscale Funnel
+
+## การแยกจาก K-QCENTER
+
+| รายการ | K-QOnline | K-QCENTER |
+|---|---|---|
+| ผู้ใช้งาน | ผู้รับบริการ | เจ้าหน้าที่ |
+| Login | ไม่ใช้บัญชีเจ้าหน้าที่ | บังคับ Login |
+| ช่องทาง | Public HTTPS/Funnel | Private HTTPS/Tailnet |
+| Manifest | `manifest.webmanifest` | `admin-manifest.webmanifest` |
+| Service worker | `sw.js` | `admin-sw.js` |
+| Cache | `k-qonline-*` | `k-qcenter-admin-*` |
+| API | Public allowlist เท่านั้น | API หลังบ้านตาม Session/สิทธิ์ |
 
 ## การอัปเดต
 

@@ -4,7 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="K-QCENTER ระบบบริหารจัดการคิวส่วนกลาง">
+  <meta name="theme-color" content="#10233e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="K-QCENTER">
   <title>K-QCENTER — ศูนย์บริหารจัดการคิว</title>
+  <link rel="manifest" href="admin-manifest.webmanifest">
+  <link rel="icon" href="icons/admin-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/admin-icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -48,6 +55,7 @@
           <h1 id="pageTitle">ภาพรวมระบบ</h1>
         </div>
         <div class="top-actions">
+          <button class="admin-install hidden" id="installAdminApp" type="button">ติดตั้ง K-QCENTER</button>
           <button class="icon-button notification" aria-label="การแจ้งเตือน">♢<b>3</b></button>
           <div class="profile">
             <div class="avatar">กส</div>
@@ -145,5 +153,6 @@
   <script src="app.js"></script>
   <script src="auth.js"></script>
   <script src="admin-crud.js"></script>
+  <script src="admin-pwa.js"></script>
 </body>
 </html>
