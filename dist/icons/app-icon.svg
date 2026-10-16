@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="K-QOnline">
-  <rect width="512" height="512" rx="112" fill="#075985"/>
+  <defs><linearGradient id="mint" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#08aa9a"/><stop offset="1" stop-color="#55d986"/></linearGradient></defs>
+  <rect width="512" height="512" rx="112" fill="url(#mint)"/>
   <path d="M128 122v268h62V279l91 111h78L243 252l107-130h-76l-84 108V122z" fill="#fff"/>
   <circle cx="365" cy="353" r="60" fill="#22c55e"/>
   <path d="m336 353 19 19 40-43" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
