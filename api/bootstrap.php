@@ -17,20 +17,32 @@ function db(): PDO
 {
     static $pdo;
     if ($pdo instanceof PDO) return $pdo;
-    $pdo = new PDO('sqlite:' . KQ_DB, null, null, [
+    $dsn = trim((string)getenv('KQCENTER_DB_DSN'));
+    $user = (string)getenv('KQCENTER_DB_USER');
+    $password = (string)getenv('KQCENTER_DB_PASSWORD');
+    $pdo = new PDO($dsn ?: 'sqlite:' . KQ_DB, $dsn ? $user : null, $dsn ? $password : null, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
-    $pdo->exec('PRAGMA foreign_keys = ON');
-    $pdo->exec('PRAGMA journal_mode = WAL');
-    $pdo->exec('PRAGMA busy_timeout = 5000');
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+        $pdo->exec('PRAGMA foreign_keys = ON');
+        $pdo->exec('PRAGMA journal_mode = WAL');
+        $pdo->exec('PRAGMA busy_timeout = 5000');
+    } else {
+        $pdo->exec("SET time_zone = '+00:00'");
+        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+    }
     migrate($pdo);
     return $pdo;
 }
 
 function migrate(PDO $pdo): void
 {
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        migrateMariaDb($pdo);
+        return;
+    }
     $pdo->exec(<<<'SQL'
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -220,8 +232,29 @@ SQL);
     if ($count === 0) seed($pdo);
 }
 
+function migrateMariaDb(PDO $pdo): void
+{
+    $sql = file_get_contents(__DIR__ . '/schema-mariadb.sql');
+    if ($sql === false) throw new RuntimeException('Cannot read MariaDB schema');
+    foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) $pdo->exec($statement);
+    ensureColumn($pdo, 'branches', 'building_id', 'BIGINT UNSIGNED NULL');
+    if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
+        $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
+    }
+    $defaultBuilding = (int)$pdo->query('SELECT id FROM buildings ORDER BY id LIMIT 1')->fetchColumn();
+    $pdo->prepare('UPDATE branches SET building_id=? WHERE building_id IS NULL')->execute([$defaultBuilding]);
+    if ((int)$pdo->query('SELECT COUNT(*) FROM branches')->fetchColumn() === 0) seed($pdo);
+}
+
 function ensureColumn(PDO $pdo, string $table, string $column, string $definition): void
 {
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $stmt=$pdo->prepare('SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?');
+        $stmt->execute([$table,$column]);
+        if($stmt->fetchColumn())return;
+        $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+        return;
+    }
     $columns = $pdo->query("PRAGMA table_info($table)")->fetchAll();
     foreach ($columns as $item) if ($item['name'] === $column) return;
     $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
@@ -272,7 +305,8 @@ function generateSlots(PDO $pdo, string $date): int
             $online = (int)floor($capacity * (int)$department['online_quota_percent'] / 100);
             $walkin = (int)floor($capacity * (int)$department['walkin_quota_percent'] / 100);
             $reserve = max(0, $capacity - $online - $walkin);
-            $stmt = $pdo->prepare('INSERT OR IGNORE INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity) VALUES (?,?,?,?,?,?,?,?,?)');
+            $verb=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'?'INSERT IGNORE':'INSERT OR IGNORE';
+            $stmt = $pdo->prepare($verb.' INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity) VALUES (?,?,?,?,?,?,?,?,?)');
             $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($minute+30),$capacity,$online,$walkin,$reserve]);
             $created += $stmt->rowCount();
           }
@@ -406,6 +440,27 @@ function audit(?int $userId, string $action, string $entityType, ?string $entity
     $stmt->execute([$userId,$action,$entityType,$entityId,$detail ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,$_SERVER['REMOTE_ADDR'] ?? null]);
 }
 
+function beginCapacityTransaction(PDO $pdo): void
+{
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') $pdo->exec('BEGIN IMMEDIATE');
+    else $pdo->beginTransaction();
+}
+
+function selectSlotForUpdate(PDO $pdo, int $slotId): array|false
+{
+    $sql='SELECT * FROM slots WHERE id=? AND active=1';
+    if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql')$sql.=' FOR UPDATE';
+    $stmt=$pdo->prepare($sql);$stmt->execute([$slotId]);return $stmt->fetch();
+}
+
+function upsertWeeklyScheduleConfig(PDO $pdo,string $type,int $scopeId): void
+{
+    $sql=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'
+        ? 'INSERT INTO weekly_schedule_config(scope_type,scope_id,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE updated_at=CURRENT_TIMESTAMP'
+        : 'INSERT INTO weekly_schedule_config(scope_type,scope_id,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(scope_type,scope_id) DO UPDATE SET updated_at=CURRENT_TIMESTAMP';
+    $pdo->prepare($sql)->execute([$type,$scopeId]);
+}
+
 function newPublicId(): string { return bin2hex(random_bytes(16)); }
 
 function nextQueueNo(PDO $pdo, int $departmentId, string $slotDate): string
@@ -425,7 +480,7 @@ function createQueueTicket(PDO $pdo, array $booking): array
     $publicId=newPublicId();$queueNo=nextQueueNo($pdo,$departmentId,(string)$slotRow['slot_date']);
     $waiting=$pdo->prepare("SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND q.status IN ('WAITING','CALLED')");$waiting->execute([$departmentId]);
     $estimated=(int)$waiting->fetchColumn()*10;
-    $stmt=$pdo->prepare("INSERT INTO queue_tickets(public_id,booking_id,queue_no,source,status,current_step,checked_in_at,estimated_wait_minutes) VALUES (?,?,?,?,?,?,datetime('now'),?)");
+    $stmt=$pdo->prepare("INSERT INTO queue_tickets(public_id,booking_id,queue_no,source,status,current_step,checked_in_at,estimated_wait_minutes) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,?)");
     $stmt->execute([$publicId,$booking['id'],$queueNo,$booking['source'],'WAITING','REGISTRATION_WAITING',$estimated]);
     $id=(int)$pdo->lastInsertId();
     $pdo->prepare("INSERT INTO queue_events(queue_ticket_id,event_type,status,step,note) VALUES (?,?,?,?,?)")->execute([$id,'CHECKED_IN','WAITING','REGISTRATION_WAITING','ยืนยันการมาถึงและเข้าคิวแล้ว']);

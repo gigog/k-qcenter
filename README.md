@@ -41,7 +41,7 @@ API อยู่ที่ `api/index.php` และรองรับส่ว�
 - ปรับ Capacity ของ Slot
 - Audit log
 
-SQLite เหมาะกับระบบ Pilot บนเครื่องเดียว ก่อนใช้งานหลายสาขาหรือมีทราฟฟิกสูงควรย้าย database adapter ไป MariaDB/PostgreSQL และทดสอบโหลดเพิ่มเติม
+ระบบรองรับ SQLite สำหรับเครื่องพัฒนาและ MariaDB สำหรับ Server/Production โดยกำหนด `KQCENTER_DB_DSN`, `KQCENTER_DB_USER` และ `KQCENTER_DB_PASSWORD` ผ่าน environment ของ PHP-FPM การติดตั้งบน Linux ใช้ MariaDB/InnoDB พร้อม row locking เพื่อป้องกันการรับจองเกิน Capacity
 
 มาตรฐานร่วมของทุกระบบ:
 

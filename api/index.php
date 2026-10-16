@@ -153,7 +153,7 @@ try {
         requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$type=strtoupper((string)($in['scope_type']??''));$scopeId=(int)($in['scope_id']??0);$items=$in['intervals']??[];if(!in_array($type,['BRANCH','DEPARTMENT'],true)||$scopeId<1||!is_array($items))fail('ข้อมูลตารางเวลาไม่ถูกต้อง');
         $clean=[];foreach($items as $item){$day=(int)($item['weekday']??0);$open=(string)($item['open_time']??'');$close=(string)($item['close_time']??'');if($day<1||$day>7||!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close)fail('ช่วงเวลาไม่ถูกต้อง');$clean[$day][]=[$open,$close];}
         foreach($clean as $day=>$ranges){usort($ranges,fn($a,$b)=>strcmp($a[0],$b[0]));for($i=1;$i<count($ranges);$i++)if($ranges[$i][0]<$ranges[$i-1][1])fail('ช่วงเวลาในวันเดียวกันซ้อนกัน');}
-        $pdo->beginTransaction();try{$pdo->prepare('DELETE FROM weekly_hours WHERE scope_type=? AND scope_id=?')->execute([$type,$scopeId]);$pdo->prepare('INSERT INTO weekly_schedule_config(scope_type,scope_id,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(scope_type,scope_id) DO UPDATE SET updated_at=CURRENT_TIMESTAMP')->execute([$type,$scopeId]);$stmt=$pdo->prepare('INSERT INTO weekly_hours(scope_type,scope_id,weekday,interval_order,open_time,close_time) VALUES (?,?,?,?,?,?)');foreach($clean as $day=>$ranges)foreach($ranges as $index=>$range)$stmt->execute([$type,$scopeId,$day,$index+1,$range[0],$range[1]]);$pdo->commit();}catch(Throwable $e){$pdo->rollBack();throw $e;}audit((int)$user['id'],'UPDATE_WEEKLY_HOURS',strtolower($type),(string)$scopeId,['interval_count'=>count($items)]);respond(['ok'=>true]);
+        $pdo->beginTransaction();try{$pdo->prepare('DELETE FROM weekly_hours WHERE scope_type=? AND scope_id=?')->execute([$type,$scopeId]);upsertWeeklyScheduleConfig($pdo,$type,$scopeId);$stmt=$pdo->prepare('INSERT INTO weekly_hours(scope_type,scope_id,weekday,interval_order,open_time,close_time) VALUES (?,?,?,?,?,?)');foreach($clean as $day=>$ranges)foreach($ranges as $index=>$range)$stmt->execute([$type,$scopeId,$day,$index+1,$range[0],$range[1]]);$pdo->commit();}catch(Throwable $e){$pdo->rollBack();throw $e;}audit((int)$user['id'],'UPDATE_WEEKLY_HOURS',strtolower($type),(string)$scopeId,['interval_count'=>count($items)]);respond(['ok'=>true]);
     }
 
     if ($action === 'slots') {
@@ -186,13 +186,13 @@ try {
         requireMethod('POST'); $in=jsonInput();
         foreach(['slot_id','customer_name','customer_phone'] as $field) if(empty($in[$field])) fail("กรุณาระบุ $field");
         $idempotency = trim((string)($in['idempotency_key'] ?? '')) ?: null;
-        $pdo->exec('BEGIN IMMEDIATE');
+        beginCapacityTransaction($pdo);
         try {
             if ($idempotency) {
                 $stmt=$pdo->prepare('SELECT * FROM bookings WHERE idempotency_key=?'); $stmt->execute([$idempotency]);
                 if ($existing=$stmt->fetch()) { $pdo->exec('COMMIT'); respond(['ok'=>true,'booking'=>$existing,'duplicate'=>true]); }
             }
-            $stmt=$pdo->prepare('SELECT * FROM slots WHERE id=? AND active=1'); $stmt->execute([(int)$in['slot_id']]); $slot=$stmt->fetch();
+            $slot=selectSlotForUpdate($pdo,(int)$in['slot_id']);
             if(!$slot) throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');
             if((int)$slot['booked_count'] >= (int)$slot['capacity']) throw new DomainException('Slot นี้เต็มแล้ว');
             $source=strtoupper(trim((string)($in['source']??'ONLINE')));if($source!=='ONLINE')throw new DomainException('ช่องทางการจองไม่ถูกต้อง');
@@ -225,14 +225,14 @@ try {
     if ($action === 'kiosk-check-in') {
         requireMethod('POST');$in=jsonInput();$token=trim((string)($in['token']??''));
         if(!preg_match('/^[a-f0-9]{32}$/',$token))fail('QR หรือรหัสยืนยันไม่ถูกต้อง');
-        $pdo->exec('BEGIN IMMEDIATE');
+        beginCapacityTransaction($pdo);
         try{$stmt=$pdo->prepare('SELECT * FROM bookings WHERE public_id=?');$stmt->execute([$token]);$booking=$stmt->fetch();if(!$booking)throw new DomainException('ไม่พบรายการจอง');if(in_array($booking['status'],['CANCELLED','EXPIRED'],true))throw new DomainException('รายการจองนี้ไม่สามารถเช็กอินได้');$ticket=createQueueTicket($pdo,$booking);$pdo->exec('COMMIT');audit(null,'KIOSK_CHECK_IN','queue_ticket',(string)$ticket['id'],['queue_no'=>$ticket['queue_no']]);respond(['ok'=>true,'ticket'=>$ticket]);}catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
     }
 
     if ($action === 'kiosk-walk-in') {
         requireMethod('POST');$in=jsonInput();foreach(['slot_id','customer_name'] as $field)if(empty($in[$field]))fail("กรุณาระบุ $field");
-        $pdo->exec('BEGIN IMMEDIATE');
-        try{$stmt=$pdo->prepare('SELECT * FROM slots WHERE id=? AND active=1');$stmt->execute([(int)$in['slot_id']]);$slot=$stmt->fetch();if(!$slot)throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');$used=$pdo->prepare("SELECT COUNT(*) FROM bookings WHERE slot_id=? AND source='WALK_IN' AND status NOT IN ('CANCELLED','EXPIRED')");$used->execute([$slot['id']]);if((int)$used->fetchColumn()>=(int)$slot['walkin_capacity']+(int)$slot['reserve_capacity'])throw new DomainException('โควตา Walk-in ของ Slot นี้เต็มแล้ว');if((int)$slot['booked_count']>=(int)$slot['capacity'])throw new DomainException('Slot นี้เต็มแล้ว');$publicId=newPublicId();$reference='KQ-'.date('ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)),0,6));$stmt=$pdo->prepare("INSERT INTO bookings(public_id,reference_no,slot_id,customer_name,customer_phone,source,status) VALUES (?,?,?,?,?,'WALK_IN','CONFIRMED')");$stmt->execute([$publicId,$reference,$slot['id'],trim((string)$in['customer_name']),trim((string)($in['customer_phone']??''))]);$bookingId=(int)$pdo->lastInsertId();$pdo->prepare('UPDATE slots SET booked_count=booked_count+1 WHERE id=?')->execute([$slot['id']]);$stmt=$pdo->prepare('SELECT * FROM bookings WHERE id=?');$stmt->execute([$bookingId]);$ticket=createQueueTicket($pdo,$stmt->fetch());$pdo->exec('COMMIT');audit(null,'CREATE_WALK_IN','queue_ticket',(string)$ticket['id'],['queue_no'=>$ticket['queue_no']]);respond(['ok'=>true,'ticket'=>$ticket,'booking_public_id'=>$publicId],201);}catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
+        beginCapacityTransaction($pdo);
+        try{$slot=selectSlotForUpdate($pdo,(int)$in['slot_id']);if(!$slot)throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');$used=$pdo->prepare("SELECT COUNT(*) FROM bookings WHERE slot_id=? AND source='WALK_IN' AND status NOT IN ('CANCELLED','EXPIRED')");$used->execute([$slot['id']]);if((int)$used->fetchColumn()>=(int)$slot['walkin_capacity']+(int)$slot['reserve_capacity'])throw new DomainException('โควตา Walk-in ของ Slot นี้เต็มแล้ว');if((int)$slot['booked_count']>=(int)$slot['capacity'])throw new DomainException('Slot นี้เต็มแล้ว');$publicId=newPublicId();$reference='KQ-'.date('ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)),0,6));$stmt=$pdo->prepare("INSERT INTO bookings(public_id,reference_no,slot_id,customer_name,customer_phone,source,status) VALUES (?,?,?,?,?,'WALK_IN','CONFIRMED')");$stmt->execute([$publicId,$reference,$slot['id'],trim((string)$in['customer_name']),trim((string)($in['customer_phone']??''))]);$bookingId=(int)$pdo->lastInsertId();$pdo->prepare('UPDATE slots SET booked_count=booked_count+1 WHERE id=?')->execute([$slot['id']]);$stmt=$pdo->prepare('SELECT * FROM bookings WHERE id=?');$stmt->execute([$bookingId]);$ticket=createQueueTicket($pdo,$stmt->fetch());$pdo->exec('COMMIT');audit(null,'CREATE_WALK_IN','queue_ticket',(string)$ticket['id'],['queue_no'=>$ticket['queue_no']]);respond(['ok'=>true,'ticket'=>$ticket,'booking_public_id'=>$publicId],201);}catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
     }
 
     if ($action === 'public-slots') {
