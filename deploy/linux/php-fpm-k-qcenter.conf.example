@@ -11,9 +11,9 @@ pm.start_servers = 2
 pm.min_spare_servers = 2
 pm.max_spare_servers = 4
 clear_env = yes
-env[KQCENTER_DB_DSN] = mysql:host=localhost;dbname=kqcenter;charset=utf8mb4
-env[KQCENTER_DB_USER] = kqcenter_app
-env[KQCENTER_DB_PASSWORD] = REPLACE_WITH_SERVER_SECRET
+env[KQCENTER_DB_DSN] = "mysql:host=localhost;dbname=kqcenter;charset=utf8mb4"
+env[KQCENTER_DB_USER] = "kqcenter_app"
+env[KQCENTER_DB_PASSWORD] = "REPLACE_WITH_SERVER_SECRET"
 php_admin_value[session.cookie_secure] = 1
 php_admin_value[session.cookie_httponly] = 1
 php_admin_value[session.cookie_samesite] = Strict
