@@ -6,6 +6,7 @@
 
 - [K-QCENTER System Specification](docs/K-QCENTER-SYSTEM-SPEC.md)
 - [คู่มือ Deploy และอัปเดตบน Windows/XAMPP](docs/DEPLOYMENT-WINDOWS.md)
+- [คู่มือ Deploy และอัปเดตบน Ubuntu/Nginx/MariaDB](docs/DEPLOYMENT-UBUNTU.md)
 
 ## เปิดระบบต้นแบบ
 
