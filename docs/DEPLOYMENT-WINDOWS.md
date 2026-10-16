@@ -9,6 +9,36 @@
 - Public API ช่วง Pilot: HTTPS ผ่าน Tailscale Funnel เฉพาะ endpoint ที่กำหนด
 - Admin: Tailscale Serve หรือ LAN เท่านั้น
 
+## HTTPS ผ่าน Tailscale (ช่วงทดลอง)
+
+ระบบแยกช่องทางดังนี้:
+
+- Public Funnel `:443` เปิดเฉพาะ K-QOnline, Queue Status และ Public API ผ่าน `127.0.0.1:8088`
+- Private Serve `:8443` เปิด Admin และ Kiosk ให้เฉพาะอุปกรณ์ใน Tailnet ผ่าน Apache พอร์ต `80`
+- Database, Redis, HOSxP, phpMyAdmin, RDP และหน้าหลังบ้านไม่ถูกเปิดผ่าน Funnel
+
+หลังอัปเดต source บนเซิร์ฟเวอร์ ให้เปิด PowerShell แบบ Administrator แล้วรัน:
+
+```powershell
+Set-Location C:\xampp\htdocs\k-qcenter
+powershell.exe -ExecutionPolicy Bypass -File .\deploy\windows\configure-tailscale-https.ps1
+```
+
+สคริปต์จะสำรอง `httpd.conf`, ติดตั้ง Apache VirtualHost สำหรับ Public Gateway, ตรวจ configuration, restart Apache, ตรวจ health และตั้งค่า Tailscale Funnel/Serve แบบ background
+
+ตรวจสอบภายหลังด้วย:
+
+```powershell
+tailscale funnel status
+tailscale serve status
+```
+
+ถ้าทดลองเฉพาะผู้ใช้ใน Tailnet และยังไม่ต้องการออกอินเทอร์เน็ต:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\deploy\windows\configure-tailscale-https.ps1 -SkipFunnel
+```
+
 ## สิ่งที่ต้องมีบน Server
 
 1. Windows Server/Windows PC ที่กำหนด IP `10.9.1.22`
