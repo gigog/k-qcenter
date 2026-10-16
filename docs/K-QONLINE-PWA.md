@@ -19,6 +19,8 @@ K-QOnline ไม่ต้อง Login ด้วยบัญชีเจ้าห
 
 ระบบต้องเปิดผ่าน HTTPS และไฟล์ `manifest.webmanifest` กับ `sw.js` ต้องอยู่ภายใต้ URL เดียวกับ K-QOnline
 
+บนเครื่องทดลอง Ubuntu เส้นทางติดตั้งต้องแยกกันเป็น `/online/` สำหรับ K-QOnline และ `/dist/` สำหรับ K-QCENTER เพื่อไม่ให้ PWA identity, scope และ service worker ทับกัน เส้นทาง `/online/` ถูก reverse proxy ไปยัง Public Gateway เท่านั้น จึงไม่เปิด Admin API เพิ่มเติม
+
 ### Android
 
 1. เปิด K-QOnline ด้วย Chrome

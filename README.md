@@ -20,7 +20,7 @@ http://localhost/k-qcenter/
 
 หน้าทดลองสำหรับผู้รับบริการ:
 
-- K-QOnline: `http://localhost/k-qcenter/dist/online.html`
+- K-QOnline (เครื่องพัฒนา): `http://localhost/k-qcenter/dist/online.html`
 - Kiosk: `http://localhost/k-qcenter/dist/kiosk.html`
 - ตรวจสอบสถานะคิว: `http://localhost/k-qcenter/dist/status.html`
 
@@ -37,6 +37,8 @@ K-QOnline เป็น Progressive Web App (PWA) ติดตั้งจาก 
 ### แอปหลังบ้าน K-QCENTER
 
 K-QCENTER มีชุดติดตั้ง PWA แยกจาก K-QOnline ทั้ง manifest, service worker, cache และไอคอน การใช้งานหลังบ้านยังบังคับ Login และต้องเข้าผ่าน Private HTTPS/Tailnet ส่วน K-QOnline ไม่ใช้บัญชีเจ้าหน้าที่และ Public Gateway เปิดเฉพาะ API สำหรับจองและดูสถานะคิวเท่านั้น
+
+บน Ubuntu ช่วงทดสอบ Tailnet ให้ติดตั้งจากคนละ scope โดยใช้ K-QOnline ที่ `/online/` และ K-QCENTER ที่ `/dist/` ห้ามติดตั้ง K-QOnline จาก `/dist/online.html` เพราะจะใช้ scope ร่วมกับระบบหลังบ้าน
 
 เมื่อเปิดครั้งแรก ระบบจะสร้างฐานข้อมูล SQLite และแสดงหน้าสร้างบัญชีผู้ดูแล ให้ใช้รหัสผ่านอย่างน้อย 10 ตัวอักษร จากนั้นข้อมูลสาขา แผนก บริการ Slot การจอง และ Audit log จะถูกบันทึกใน `data/kqcenter.sqlite`
 

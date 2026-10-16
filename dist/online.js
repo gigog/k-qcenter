@@ -1,5 +1,5 @@
 'use strict';
-const api='../api/index.php';const $=id=>document.getElementById(id);
+const api=location.pathname.startsWith('/online/')?'./api/index.php':'../api/index.php';const $=id=>document.getElementById(id);
 let installPrompt=null;
 const isIos=/iphone|ipad|ipod/i.test(navigator.userAgent);const isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 function updateNetworkStatus(){const offline=!navigator.onLine;$('networkStatus').classList.toggle('hidden',!offline);document.querySelector('#bookingForm button[type="submit"],#bookingForm button:not([type])').disabled=offline}
@@ -10,7 +10,7 @@ window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();ins
 $('installApp').onclick=async()=>{if(isStandalone){$('installGuideContent').innerHTML='<p>K-QOnline ถูกเปิดในโหมดแอปแล้ว</p>';$('installGuide').classList.remove('hidden');return}if(!installPrompt){showInstallGuide();return}installPrompt.prompt();await installPrompt.userChoice;installPrompt=null};
 $('closeInstallGuide').onclick=closeInstallGuide;$('dismissInstallGuide').onclick=closeInstallGuide;$('installGuide').onclick=event=>{if(event.target===$('installGuide'))closeInstallGuide()};
 window.addEventListener('appinstalled',()=>{$('installApp').classList.add('hidden')});
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=5').catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js?v=6').catch(()=>{}));
 async function loadSlots(){const response=await fetch(`${api}?action=public-slots&date=${$('bookingDate').value}`,{cache:'no-store'});const body=await response.json();if(!response.ok)throw new Error(body.error);$('onlineSlot').innerHTML=body.data.map(x=>`<option value="${x.id}">${x.start_time}–${x.end_time} น. · ${x.branch_name} · ${x.department_name}</option>`).join('')||'<option value="">ไม่มี Slot ที่เปิดรับ</option>'}
 function showError(error){$('bookingError').textContent=error.message;$('bookingError').classList.remove('hidden')}
 try{const today=KQThaiDate.todayISO();$('bookingDate').innerHTML=KQThaiDate.options(today,0,90);$('bookingDate').value=today}catch(error){const today=new Date().toISOString().slice(0,10);$('bookingDate').innerHTML=`<option value="${today}">${KQThaiDate.date(today)}</option>`;showError(new Error('ปฏิทินแสดงได้บางส่วน กรุณารีเฟรชหน้าอีกครั้ง'))}$('bookingDate').onchange=()=>loadSlots().catch(showError);loadSlots().catch(showError);

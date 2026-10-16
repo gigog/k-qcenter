@@ -1,5 +1,5 @@
 'use strict';
-const api='../api/index.php';
+const api=location.pathname.startsWith('/online/')?'./api/index.php':'../api/index.php';
 const steps=[['BOOKED','ยืนยันการจอง'],['CHECKED_IN','เช็กอินแล้ว'],['REGISTRATION_WAITING','รอเวชระเบียน'],['VISIT_OPEN','เปิด Visit แล้ว'],['SERVICE_WAITING','รอรับบริการ'],['SERVING','กำลังรับบริการ'],['COMPLETED','เสร็จสิ้น']];
 const titles={BOOKED:'จองคิวเรียบร้อยแล้ว',REGISTRATION_WAITING:'กำลังรอเวชระเบียน',VISIT_OPEN:'เปิด Visit แล้ว',SERVICE_WAITING:'กำลังรอรับบริการ',SERVING:'กำลังรับบริการ',COMPLETED:'รับบริการเสร็จสิ้น'};
 let activeToken='';
