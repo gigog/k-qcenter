@@ -132,6 +132,44 @@ try {
         audit((int)$user['id'],$isEdit?'UPDATE_SERVICE':'CREATE_SERVICE','service',(string)$id,['code'=>$code,'name'=>$name]);respond(['ok'=>true,'id'=>$id]);
     }
 
+    if ($action === 'kiosk-templates') {
+        requireUser();
+        $rows=$pdo->query('SELECT k.*,g.name building_name,(SELECT COUNT(*) FROM kiosk_menu_items m WHERE m.template_id=k.id) menu_count FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id ORDER BY k.id')->fetchAll();
+        respond(['ok'=>true,'data'=>$rows]);
+    }
+
+    if ($action === 'save-kiosk-template') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;
+        $buildingId=(int)($in['building_id']??0);$code=strtoupper(trim((string)($in['code']??'')));$name=trim((string)($in['name']??''));$location=trim((string)($in['location_label']??''));$active=!empty($in['active'])?1:0;
+        if($buildingId<1||!preg_match('/^[A-Z0-9_-]{2,40}$/',$code)||mb_strlen($name)<2)fail('ข้อมูลจุด Kiosk ไม่ครบถ้วน');
+        $exists=$pdo->prepare('SELECT 1 FROM buildings WHERE id=?');$exists->execute([$buildingId]);if(!$exists->fetchColumn())fail('ไม่พบอาคาร',404);
+        try{if($id)$pdo->prepare('UPDATE kiosk_templates SET building_id=?,code=?,name=?,location_label=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$buildingId,$code,$name,$location,$active,$id]);else{$pdo->prepare('INSERT INTO kiosk_templates(building_id,code,name,location_label,active) VALUES (?,?,?,?,?)')->execute([$buildingId,$code,$name,$location,$active]);$id=(int)$pdo->lastInsertId();}}catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัส Kiosk นี้ถูกใช้งานแล้ว',409);throw $e;}
+        audit((int)$user['id'],$isEdit?'UPDATE_KIOSK_TEMPLATE':'CREATE_KIOSK_TEMPLATE','kiosk_template',(string)$id,['code'=>$code]);respond(['ok'=>true,'id'=>$id]);
+    }
+
+    if ($action === 'kiosk-menu-items') {
+        requireUser();$templateId=(int)($_GET['template_id']??0);$stmt=$pdo->prepare('SELECT m.*,d.name department_name,s.name service_name FROM kiosk_menu_items m LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN services s ON s.id=m.service_id WHERE m.template_id=? ORDER BY COALESCE(m.parent_id,0),m.sort_order,m.id');$stmt->execute([$templateId]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+    }
+
+    if ($action === 'save-kiosk-menu-item') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;$templateId=(int)($in['template_id']??0);$parentId=(int)($in['parent_id']??0)?:null;$departmentId=(int)($in['department_id']??0)?:null;$serviceId=(int)($in['service_id']??0)?:null;
+        $label=trim((string)($in['label']??''));$subtitle=trim((string)($in['subtitle']??''));$icon=mb_substr(trim((string)($in['icon']??'Q')),0,4);$order=max(0,(int)($in['sort_order']??0));$start=trim((string)($in['start_time']??''))?:null;$end=trim((string)($in['end_time']??''))?:null;$active=!empty($in['active'])?1:0;
+        if($templateId<1||mb_strlen($label)<2)fail('กรุณาระบุชื่อปุ่มและ Kiosk');if($id&&$parentId===$id)fail('ปุ่มไม่สามารถเป็นเมนูย่อยของตัวเอง');
+        if(($start===null)!==($end===null)||($start!==null&&(!preg_match('/^\d{2}:\d{2}$/',$start)||!preg_match('/^\d{2}:\d{2}$/',$end))))fail('ช่วงเวลาแสดงปุ่มไม่ถูกต้อง');
+        if($parentId){$check=$pdo->prepare('SELECT 1 FROM kiosk_menu_items WHERE id=? AND template_id=? AND parent_id IS NULL');$check->execute([$parentId,$templateId]);if(!$check->fetchColumn())fail('เมนูหลักไม่ถูกต้อง');}
+        if($serviceId){$check=$pdo->prepare('SELECT department_id FROM services WHERE id=?');$check->execute([$serviceId]);$serviceDepartment=(int)$check->fetchColumn();if(!$serviceDepartment)fail('ไม่พบบริการ',404);if($departmentId&&$departmentId!==$serviceDepartment)fail('บริการไม่อยู่ในแผนกที่เลือก');$departmentId=$serviceDepartment;}
+        try{if($id)$pdo->prepare('UPDATE kiosk_menu_items SET template_id=?,parent_id=?,department_id=?,service_id=?,label=?,subtitle=?,icon=?,sort_order=?,start_time=?,end_time=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$templateId,$parentId,$departmentId,$serviceId,$label,$subtitle,$icon?:'Q',$order,$start,$end,$active,$id]);else{$pdo->prepare('INSERT INTO kiosk_menu_items(template_id,parent_id,department_id,service_id,label,subtitle,icon,sort_order,start_time,end_time,active) VALUES (?,?,?,?,?,?,?,?,?,?,?)')->execute([$templateId,$parentId,$departmentId,$serviceId,$label,$subtitle,$icon?:'Q',$order,$start,$end,$active]);$id=(int)$pdo->lastInsertId();}}catch(PDOException $e){throw $e;}
+        audit((int)$user['id'],$isEdit?'UPDATE_KIOSK_MENU':'CREATE_KIOSK_MENU','kiosk_menu_item',(string)$id,['template_id'=>$templateId,'label'=>$label]);respond(['ok'=>true,'id'=>$id]);
+    }
+
+    if ($action === 'public-kiosk-config') {
+        $code=strtoupper(trim((string)($_GET['code']??'MAIN')));if(!preg_match('/^[A-Z0-9_-]{2,40}$/',$code))fail('รหัส Kiosk ไม่ถูกต้อง');
+        $stmt=$pdo->prepare('SELECT k.id,k.code,k.name,k.location_label,k.building_id,g.name building_name FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id WHERE k.code=? AND k.active=1 AND g.active=1');$stmt->execute([$code]);$template=$stmt->fetch();if(!$template)fail('ไม่พบจุด Kiosk หรือยังไม่ได้เปิดใช้งาน',404);
+        $stmt=$pdo->prepare('SELECT m.id,m.parent_id,m.department_id,m.service_id,m.label,m.subtitle,m.icon,m.sort_order,m.start_time,m.end_time,d.name department_name,s.name service_name FROM kiosk_menu_items m LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN branches b ON b.id=d.branch_id LEFT JOIN services s ON s.id=m.service_id WHERE m.template_id=? AND m.active=1 AND (d.id IS NULL OR (d.active=1 AND b.active=1 AND b.building_id=?)) AND (s.id IS NULL OR s.active=1) ORDER BY COALESCE(m.parent_id,0),m.sort_order,m.id');$stmt->execute([$template['id'],$template['building_id']]);$now=(new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')))->format('H:i');
+        $items=array_values(array_filter($stmt->fetchAll(),function($item)use($now){if(!$item['start_time']||!$item['end_time'])return true;$start=substr((string)$item['start_time'],0,5);$end=substr((string)$item['end_time'],0,5);return $start<$end?($now>=$start&&$now<$end):($now>=$start||$now<$end);}));
+        $visibleIds=array_fill_keys(array_map(fn($item)=>(int)$item['id'],$items),true);$items=array_values(array_filter($items,fn($item)=>!$item['parent_id']||isset($visibleIds[(int)$item['parent_id']])));respond(['ok'=>true,'template'=>$template,'data'=>$items,'server_time'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')))->format(DATE_ATOM)]);
+    }
+
     if ($action === 'calendars') {
         requireUser();$rows=$pdo->query("SELECT o.*,CASE WHEN o.scope_type='BRANCH' THEN b.name ELSE d.name END scope_name,b2.name branch_name FROM schedule_overrides o LEFT JOIN branches b ON o.scope_type='BRANCH' AND b.id=o.scope_id LEFT JOIN departments d ON o.scope_type='DEPARTMENT' AND d.id=o.scope_id LEFT JOIN branches b2 ON b2.id=d.branch_id ORDER BY o.override_date DESC,o.id DESC")->fetchAll();respond(['ok'=>true,'data'=>$rows]);
     }
@@ -251,7 +289,9 @@ try {
 
     if ($action === 'public-slots') {
         $date=$_GET['date']??date('Y-m-d');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('วันที่ไม่ถูกต้อง');generateSlots($pdo,$date);
-        $stmt=$pdo->prepare("SELECT s.id,s.slot_date,s.start_time,s.end_time,s.capacity,s.booked_count,s.online_capacity,s.walkin_capacity,s.reserve_capacity,d.name department_name,sv.name service_name,b.name branch_name FROM slots s JOIN departments d ON d.id=s.department_id JOIN branches b ON b.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE s.slot_date=? AND s.active=1 AND s.booked_count<s.capacity ORDER BY s.start_time,d.id");$stmt->execute([$date]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+        $where=['s.slot_date=?','s.active=1','s.booked_count<s.capacity'];$params=[$date];$departmentId=(int)($_GET['department_id']??0);$serviceId=(int)($_GET['service_id']??0);$kioskCode=strtoupper(trim((string)($_GET['kiosk']??'')));
+        if($departmentId){$where[]='d.id=?';$params[]=$departmentId;}if($serviceId){$where[]='sv.id=?';$params[]=$serviceId;}if($kioskCode!==''){$where[]='b.building_id=(SELECT building_id FROM kiosk_templates WHERE code=? AND active=1)';$params[]=$kioskCode;}
+        $stmt=$pdo->prepare("SELECT s.id,s.slot_date,s.start_time,s.end_time,s.capacity,s.booked_count,s.online_capacity,s.walkin_capacity,s.reserve_capacity,d.name department_name,sv.name service_name,b.name branch_name FROM slots s JOIN departments d ON d.id=s.department_id JOIN branches b ON b.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE ".implode(' AND ',$where).' ORDER BY s.start_time,d.id');$stmt->execute($params);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
     }
 
     if ($action === 'audit') {

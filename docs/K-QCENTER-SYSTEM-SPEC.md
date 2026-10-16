@@ -556,3 +556,9 @@ Audit log ควรมีผู้กระทำ บทบาท เวลา I
 
 รายละเอียดการสแกน QR/กรอกรหัส การอ่านบัตร การสแกน QR ที่ Kiosk หรือจากใบคิวด้วยมือถือเพื่อดู Timeline และเวลารอ การดูสถานะใน K-QOnline การติดตามผ่าน Monitor การเรียกเวชระเบียน การเปิด Visit ใน HOSxP และ SLA ไม่เกิน 120 นาที กำหนดไว้ใน [K-QCENTER-QUEUE-WORKFLOW.md](K-QCENTER-QUEUE-WORKFLOW.md)
 
+## 23. Kiosk Template และเมนูตามจุดบริการ
+
+แต่ละจุด Kiosk ต้องเลือก Template ด้วยรหัสใน URL เช่น `kiosk.html?kiosk=ER` โดย Template ผูกกับอาคารหนึ่งแห่งและกำหนดเมนูหลัก เมนูย่อย แผนก บริการ ลำดับ ช่วงเวลาแสดง และสถานะเปิด–ปิดได้จาก K-QCENTER หลังบ้าน หน้า Kiosk ต้องโหลดการตั้งค่าผ่าน API และต้องไม่เชื่อมฐานข้อมูลโดยตรง
+
+รายละเอียดการตั้งค่าและพฤติกรรมอยู่ใน [K-QCENTER-KIOSK-TEMPLATES.md](K-QCENTER-KIOSK-TEMPLATES.md)
+

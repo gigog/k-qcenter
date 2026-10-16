@@ -98,6 +98,22 @@ CREATE TABLE IF NOT EXISTS services (
   preparation_minutes INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS kiosk_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  building_id INTEGER NOT NULL REFERENCES buildings(id),
+  code TEXT NOT NULL UNIQUE, name TEXT NOT NULL, location_label TEXT,
+  active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS kiosk_menu_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  template_id INTEGER NOT NULL REFERENCES kiosk_templates(id) ON DELETE CASCADE,
+  parent_id INTEGER REFERENCES kiosk_menu_items(id) ON DELETE CASCADE,
+  department_id INTEGER REFERENCES departments(id), service_id INTEGER REFERENCES services(id),
+  label TEXT NOT NULL, subtitle TEXT, icon TEXT NOT NULL DEFAULT 'Q', sort_order INTEGER NOT NULL DEFAULT 0,
+  start_time TEXT, end_time TEXT, active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS calendar_overrides (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   branch_id INTEGER NOT NULL REFERENCES branches(id),
@@ -220,6 +236,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_slot_status ON bookings(slot_id, status)
 CREATE INDEX IF NOT EXISTS idx_queue_status ON queue_tickets(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_queue_events_ticket ON queue_events(queue_ticket_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_kiosk_menu_template ON kiosk_menu_items(template_id,parent_id,sort_order);
 SQL);
 
     ensureColumn($pdo, 'branches', 'building_id', 'INTEGER REFERENCES buildings(id)');

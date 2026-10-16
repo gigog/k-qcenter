@@ -40,6 +40,26 @@ CREATE TABLE IF NOT EXISTS services (
   preparation_minutes INT UNSIGNED NOT NULL DEFAULT 0, active TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_services_department FOREIGN KEY(department_id) REFERENCES departments(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS kiosk_templates (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, building_id BIGINT UNSIGNED NOT NULL,
+  code VARCHAR(40) NOT NULL UNIQUE, name VARCHAR(255) NOT NULL, location_label VARCHAR(255) NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_kiosk_template_building FOREIGN KEY(building_id) REFERENCES buildings(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS kiosk_menu_items (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, template_id BIGINT UNSIGNED NOT NULL,
+  parent_id BIGINT UNSIGNED NULL, department_id BIGINT UNSIGNED NULL, service_id BIGINT UNSIGNED NULL,
+  label VARCHAR(255) NOT NULL, subtitle VARCHAR(255) NULL, icon VARCHAR(20) NOT NULL DEFAULT 'Q',
+  sort_order INT UNSIGNED NOT NULL DEFAULT 0, start_time TIME NULL, end_time TIME NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_kiosk_menu_template(template_id,parent_id,sort_order),
+  CONSTRAINT fk_kiosk_menu_template FOREIGN KEY(template_id) REFERENCES kiosk_templates(id) ON DELETE CASCADE,
+  CONSTRAINT fk_kiosk_menu_parent FOREIGN KEY(parent_id) REFERENCES kiosk_menu_items(id) ON DELETE CASCADE,
+  CONSTRAINT fk_kiosk_menu_department FOREIGN KEY(department_id) REFERENCES departments(id),
+  CONSTRAINT fk_kiosk_menu_service FOREIGN KEY(service_id) REFERENCES services(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS calendar_overrides (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, branch_id BIGINT UNSIGNED NOT NULL, override_date DATE NOT NULL,
   name VARCHAR(255) NOT NULL, is_closed TINYINT(1) NOT NULL DEFAULT 0, open_time TIME NULL, close_time TIME NULL,
