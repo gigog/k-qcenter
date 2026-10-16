@@ -42,7 +42,7 @@ try {
         startSecureSession(); session_regenerate_id(true); $_SESSION['user_id'] = (int)$user['id'];
         $pdo->prepare('UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$user['id']]);
         audit((int)$user['id'],'LOGIN','session');
-        respond(['ok'=>true,'user'=>['id'=>$user['id'],'display_name'=>$user['display_name'],'role'=>$user['role']]]);
+        respond(['ok'=>true,'user'=>['id'=>$user['id'],'display_name'=>$user['display_name'],'role'=>$user['role']],'csrf_token'=>csrfToken()]);
     }
 
     if ($action === 'logout') {
@@ -51,7 +51,7 @@ try {
         startSecureSession(); $_SESSION = []; session_destroy(); respond(['ok'=>true]);
     }
 
-    if ($action === 'me') respond(['ok'=>true,'user'=>requireUser()]);
+    if ($action === 'me') respond(['ok'=>true,'user'=>requireUser(),'csrf_token'=>csrfToken()]);
 
     if ($action === 'dashboard') {
         requireUser();
@@ -72,16 +72,73 @@ try {
         respond(['ok'=>true,'data'=>$rows]);
     }
 
+    if ($action === 'save-branch') {
+        requireMethod('POST'); $user=requireAdmin(); requireCsrf(); $in=jsonInput();
+        $id=(int)($in['id']??0); $isEdit=$id>0; $code=strtoupper(trim((string)($in['code']??''))); $name=trim((string)($in['name']??''));
+        $open=(string)($in['open_time']??''); $close=(string)($in['close_time']??''); $buffer=(int)($in['closing_buffer_minutes']??30); $active=!empty($in['active'])?1:0;
+        if(!preg_match('/^[A-Z0-9_-]{2,20}$/',$code)) fail('รหัสสาขาไม่ถูกต้อง');
+        if(mb_strlen($name)<2) fail('กรุณาระบุชื่อสาขา');
+        if(!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close) fail('เวลาทำการไม่ถูกต้อง');
+        if($buffer<0||$buffer>180) fail('Closing buffer ต้องอยู่ระหว่าง 0–180 นาที');
+        try {
+            if($id){$old=$pdo->prepare('SELECT * FROM branches WHERE id=?');$old->execute([$id]);if(!$old->fetch())fail('ไม่พบสาขา',404);$pdo->prepare('UPDATE branches SET code=?,name=?,open_time=?,close_time=?,closing_buffer_minutes=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$code,$name,$open,$close,$buffer,$active,$id]);}
+            else{$pdo->prepare('INSERT INTO branches(code,name,open_time,close_time,closing_buffer_minutes,active) VALUES (?,?,?,?,?,?)')->execute([$code,$name,$open,$close,$buffer,$active]);$id=(int)$pdo->lastInsertId();}
+        } catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัสสาขานี้ถูกใช้งานแล้ว',409);throw $e;}
+        audit((int)$user['id'],$isEdit?'UPDATE_BRANCH':'CREATE_BRANCH','branch',(string)$id,['code'=>$code,'name'=>$name]); respond(['ok'=>true,'id'=>$id]);
+    }
+
     if ($action === 'departments') {
         requireUser();
         $rows = $pdo->query('SELECT d.*,b.name branch_name FROM departments d JOIN branches b ON b.id=d.branch_id ORDER BY b.id,d.id')->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
     }
 
+    if ($action === 'save-department') {
+        requireMethod('POST'); $user=requireAdmin(); requireCsrf(); $in=jsonInput();
+        $id=(int)($in['id']??0);$isEdit=$id>0;$branchId=(int)($in['branch_id']??0);$code=strtoupper(trim((string)($in['code']??'')));$name=trim((string)($in['name']??''));
+        $counters=(int)($in['counter_count']??1);$efficiency=(float)($in['efficiency']??.8);$online=(int)($in['online_quota_percent']??70);$walkin=(int)($in['walkin_quota_percent']??20);$reserve=(int)($in['reserve_quota_percent']??10);$active=!empty($in['active'])?1:0;
+        if($branchId<1||!preg_match('/^[A-Z0-9_-]{2,20}$/',$code)||mb_strlen($name)<2)fail('ข้อมูลแผนกไม่ครบถ้วน');
+        if($counters<1||$counters>100||$efficiency<.1||$efficiency>1)fail('จำนวนช่องหรือประสิทธิภาพไม่ถูกต้อง');
+        if($online+$walkin+$reserve!==100)fail('สัดส่วน Online, Walk-in และ Reserve ต้องรวม 100%');
+        try{
+            if($id){$pdo->prepare('UPDATE departments SET branch_id=?,code=?,name=?,counter_count=?,efficiency=?,online_quota_percent=?,walkin_quota_percent=?,reserve_quota_percent=?,active=? WHERE id=?')->execute([$branchId,$code,$name,$counters,$efficiency,$online,$walkin,$reserve,$active,$id]);}
+            else{$pdo->prepare('INSERT INTO departments(branch_id,code,name,counter_count,efficiency,online_quota_percent,walkin_quota_percent,reserve_quota_percent,active) VALUES (?,?,?,?,?,?,?,?,?)')->execute([$branchId,$code,$name,$counters,$efficiency,$online,$walkin,$reserve,$active]);$id=(int)$pdo->lastInsertId();}
+        }catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัสแผนกนี้ถูกใช้งานแล้ว',409);throw $e;}
+        audit((int)$user['id'],$isEdit?'UPDATE_DEPARTMENT':'CREATE_DEPARTMENT','department',(string)$id,['code'=>$code,'name'=>$name]);respond(['ok'=>true,'id'=>$id]);
+    }
+
     if ($action === 'services') {
         requireUser();
         $rows = $pdo->query('SELECT s.*,d.name department_name FROM services s JOIN departments d ON d.id=s.department_id ORDER BY d.id,s.id')->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
+    }
+
+    if ($action === 'save-service') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();
+        $id=(int)($in['id']??0);$isEdit=$id>0;$departmentId=(int)($in['department_id']??0);$code=strtoupper(trim((string)($in['code']??'')));$name=trim((string)($in['name']??''));$average=(int)($in['average_minutes']??0);$prep=(int)($in['preparation_minutes']??0);$active=!empty($in['active'])?1:0;
+        if($departmentId<1||!preg_match('/^[A-Z0-9_-]{2,30}$/',$code)||mb_strlen($name)<2)fail('ข้อมูลบริการไม่ครบถ้วน');
+        if($average<1||$average>480||$prep<0||$prep>120)fail('ระยะเวลาบริการไม่ถูกต้อง');
+        try{
+            if($id){$pdo->prepare('UPDATE services SET department_id=?,code=?,name=?,average_minutes=?,preparation_minutes=?,active=? WHERE id=?')->execute([$departmentId,$code,$name,$average,$prep,$active,$id]);}
+            else{$pdo->prepare('INSERT INTO services(department_id,code,name,average_minutes,preparation_minutes,active) VALUES (?,?,?,?,?,?)')->execute([$departmentId,$code,$name,$average,$prep,$active]);$id=(int)$pdo->lastInsertId();}
+        }catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัสบริการนี้ถูกใช้งานแล้ว',409);throw $e;}
+        audit((int)$user['id'],$isEdit?'UPDATE_SERVICE':'CREATE_SERVICE','service',(string)$id,['code'=>$code,'name'=>$name]);respond(['ok'=>true,'id'=>$id]);
+    }
+
+    if ($action === 'calendars') {
+        requireUser();$rows=$pdo->query('SELECT c.*,b.name branch_name FROM calendar_overrides c JOIN branches b ON b.id=c.branch_id ORDER BY c.override_date DESC,c.id DESC')->fetchAll();respond(['ok'=>true,'data'=>$rows]);
+    }
+
+    if ($action === 'save-calendar') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();
+        $id=(int)($in['id']??0);$isEdit=$id>0;$branchId=(int)($in['branch_id']??0);$date=(string)($in['override_date']??'');$name=trim((string)($in['name']??''));$closed=!empty($in['is_closed'])?1:0;$open=$closed?null:(string)($in['open_time']??'');$close=$closed?null:(string)($in['close_time']??'');$note=trim((string)($in['note']??''));$active=!empty($in['active'])?1:0;
+        if($branchId<1||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)||mb_strlen($name)<2)fail('ข้อมูลปฏิทินไม่ครบถ้วน');
+        if(!$closed&&(!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close))fail('เวลาทำการพิเศษไม่ถูกต้อง');
+        try{
+            if($id){$pdo->prepare('UPDATE calendar_overrides SET branch_id=?,override_date=?,name=?,is_closed=?,open_time=?,close_time=?,note=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$branchId,$date,$name,$closed,$open,$close,$note,$active,$id]);}
+            else{$pdo->prepare('INSERT INTO calendar_overrides(branch_id,override_date,name,is_closed,open_time,close_time,note,active) VALUES (?,?,?,?,?,?,?,?)')->execute([$branchId,$date,$name,$closed,$open,$close,$note,$active]);$id=(int)$pdo->lastInsertId();}
+        }catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('มีการตั้งค่าสาขาและวันที่นี้แล้ว',409);throw $e;}
+        audit((int)$user['id'],$isEdit?'UPDATE_CALENDAR':'CREATE_CALENDAR','calendar_override',(string)$id,['date'=>$date,'name'=>$name]);respond(['ok'=>true,'id'=>$id]);
     }
 
     if ($action === 'slots') {
@@ -92,7 +149,7 @@ try {
     }
 
     if ($action === 'update-slot') {
-        requireMethod('POST'); $user = requireUser(); $in = jsonInput();
+        requireMethod('POST'); $user = requireAdmin(); requireCsrf(); $in = jsonInput();
         $id = (int)($in['id'] ?? 0); $capacity = (int)($in['capacity'] ?? -1);
         $stmt = $pdo->prepare('SELECT * FROM slots WHERE id=?'); $stmt->execute([$id]); $slot = $stmt->fetch();
         if (!$slot) fail('ไม่พบ Slot',404);

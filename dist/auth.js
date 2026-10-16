@@ -1,14 +1,17 @@
 'use strict';
 
 const KQ_API = '../api/index.php';
+let csrfToken = '';
 
 async function kqApi(action, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
   const response = await fetch(`${KQ_API}?action=${encodeURIComponent(action)}`, {
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(method !== 'GET' && csrfToken ? {'X-CSRF-Token': csrfToken} : {}), ...(options.headers || {}) },
     ...options
   });
   const body = await response.json().catch(() => ({ error: 'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง' }));
+  if (body.csrf_token) csrfToken = body.csrf_token;
   if (!response.ok) {
     const error = new Error(body.error || 'ไม่สามารถเชื่อมต่อระบบได้');
     error.status = response.status;

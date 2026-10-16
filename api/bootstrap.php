@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 const KQ_ROOT = __DIR__ . '/..';
-const KQ_DATA = KQ_ROOT . '/data';
-const KQ_DB = KQ_DATA . '/kqcenter.sqlite';
+define('KQ_DATA', getenv('KQCENTER_DATA_PATH') ?: KQ_ROOT . '/data');
+define('KQ_DB', getenv('KQCENTER_DB_PATH') ?: KQ_DATA . '/kqcenter.sqlite');
 
 date_default_timezone_set('Asia/Bangkok');
 
@@ -75,6 +75,20 @@ CREATE TABLE IF NOT EXISTS services (
   preparation_minutes INTEGER NOT NULL DEFAULT 0,
   active INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS calendar_overrides (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  branch_id INTEGER NOT NULL REFERENCES branches(id),
+  override_date TEXT NOT NULL,
+  name TEXT NOT NULL,
+  is_closed INTEGER NOT NULL DEFAULT 0,
+  open_time TEXT,
+  close_time TEXT,
+  note TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(branch_id, override_date)
+);
 CREATE TABLE IF NOT EXISTS slots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   department_id INTEGER NOT NULL REFERENCES departments(id),
@@ -115,6 +129,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_slots_date ON slots(slot_date, department_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_date ON calendar_overrides(override_date, branch_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_slot_status ON bookings(slot_id, status);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 SQL);
@@ -154,12 +169,18 @@ function generateSlots(PDO $pdo, string $date): int
     $departments = $pdo->query('SELECT d.*, b.open_time, b.close_time, b.closing_buffer_minutes FROM departments d JOIN branches b ON b.id=d.branch_id WHERE d.active=1 AND b.active=1')->fetchAll();
     $created = 0;
     foreach ($departments as $department) {
+        $overrideStmt = $pdo->prepare('SELECT * FROM calendar_overrides WHERE branch_id=? AND override_date=? AND active=1');
+        $overrideStmt->execute([$department['branch_id'], $date]);
+        $override = $overrideStmt->fetch();
+        if ($override && (int)$override['is_closed'] === 1) continue;
         $serviceStmt = $pdo->prepare('SELECT * FROM services WHERE department_id=? AND active=1 ORDER BY id LIMIT 1');
         $serviceStmt->execute([$department['id']]);
         $service = $serviceStmt->fetch();
         if (!$service) continue;
-        $start = new DateTimeImmutable("$date {$department['open_time']}", new DateTimeZone('Asia/Bangkok'));
-        $close = new DateTimeImmutable("$date {$department['close_time']}", new DateTimeZone('Asia/Bangkok'));
+        $openTime = ($override && $override['open_time']) ? $override['open_time'] : $department['open_time'];
+        $closeTime = ($override && $override['close_time']) ? $override['close_time'] : $department['close_time'];
+        $start = new DateTimeImmutable("$date $openTime", new DateTimeZone('Asia/Bangkok'));
+        $close = new DateTimeImmutable("$date $closeTime", new DateTimeZone('Asia/Bangkok'));
         $close = $close->modify('-'.(int)$department['closing_buffer_minutes'].' minutes');
         while ($start->modify('+30 minutes') <= $close) {
             $end = $start->modify('+30 minutes');
@@ -233,6 +254,29 @@ function requireUser(): array
 {
     $user = currentUser();
     if (!$user) fail('กรุณาเข้าสู่ระบบ', 401, ['code'=>'AUTH_REQUIRED']);
+    return $user;
+}
+
+function csrfToken(): string
+{
+    startSecureSession();
+    if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(24));
+    return (string)$_SESSION['csrf_token'];
+}
+
+function requireCsrf(): void
+{
+    startSecureSession();
+    $provided = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if (!$provided || empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$provided)) {
+        fail('คำขอหมดอายุ กรุณาลองใหม่', 419, ['code'=>'CSRF_INVALID']);
+    }
+}
+
+function requireAdmin(): array
+{
+    $user = requireUser();
+    if (($user['role'] ?? '') !== 'admin') fail('ไม่มีสิทธิ์ดำเนินการ', 403);
     return $user;
 }
 
