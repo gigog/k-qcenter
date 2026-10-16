@@ -1,9 +1,13 @@
 'use strict';
 let adminInstallPrompt=null;
 const adminInstallButton=document.getElementById('installAdminApp');
+const adminIsIos=/iphone|ipad|ipod/i.test(navigator.userAgent);const adminIsStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 function updateAdminNetwork(){let banner=document.getElementById('adminOffline');if(navigator.onLine){banner?.remove();return}if(!banner){banner=document.createElement('div');banner.id='adminOffline';banner.className='admin-offline';banner.setAttribute('role','status');banner.textContent='K-QCENTER ต้องเชื่อมต่อเครือข่ายเพื่อเข้าสู่ระบบและจัดการคิว';document.body.appendChild(banner)}}
 window.addEventListener('online',updateAdminNetwork);window.addEventListener('offline',updateAdminNetwork);updateAdminNetwork();
-window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();adminInstallPrompt=event;adminInstallButton.classList.remove('hidden')});
-adminInstallButton.addEventListener('click',async()=>{if(!adminInstallPrompt)return;adminInstallPrompt.prompt();await adminInstallPrompt.userChoice;adminInstallPrompt=null;adminInstallButton.classList.add('hidden')});
+function showAdminInstallGuide(message){document.getElementById('adminInstallContent').innerHTML=`<p>${message}</p><div class="install-security-note">K-QCENTER ใช้สำหรับเจ้าหน้าที่เท่านั้น อุปกรณ์ต้องเชื่อมต่อ Tailnet และผู้ใช้ต้อง Login ก่อนใช้งาน</div>`;document.getElementById('adminInstallGuide').classList.remove('hidden')}
+function closeAdminInstallGuide(){document.getElementById('adminInstallGuide').classList.add('hidden')}
+window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();adminInstallPrompt=event});
+adminInstallButton.addEventListener('click',async()=>{if(adminIsStandalone){showAdminInstallGuide('K-QCENTER ถูกเปิดในโหมดแอปแล้ว');return}if(adminInstallPrompt){adminInstallPrompt.prompt();await adminInstallPrompt.userChoice;adminInstallPrompt=null;return}if(adminIsIos)showAdminInstallGuide('เปิดหน้านี้ด้วย Safari กดปุ่ม <strong>แชร์</strong> แล้วเลือก <strong>เพิ่มไปยังหน้าจอโฮม</strong>');else if(!window.isSecureContext)showAdminInstallGuide('การติดตั้งต้องเปิด K-QCENTER ผ่าน Private HTTPS ของ Tailscale');else showAdminInstallGuide('เลือก <strong>ติดตั้งแอป</strong> หรือ <strong>เพิ่มลงในหน้าจอหลัก</strong> จากเมนู Chrome หากยังไม่พบให้รีเฟรชหน้าแล้วลองอีกครั้ง')});
+document.getElementById('closeAdminInstall').onclick=closeAdminInstallGuide;document.getElementById('dismissAdminInstall').onclick=closeAdminInstallGuide;document.getElementById('adminInstallGuide').onclick=event=>{if(event.target.id==='adminInstallGuide')closeAdminInstallGuide()};
 window.addEventListener('appinstalled',()=>adminInstallButton.classList.add('hidden'));
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('admin-sw.js').catch(()=>{}));

@@ -55,7 +55,7 @@
           <h1 id="pageTitle">ภาพรวมระบบ</h1>
         </div>
         <div class="top-actions">
-          <button class="admin-install hidden" id="installAdminApp" type="button">ติดตั้ง K-QCENTER</button>
+          <button class="admin-install" id="installAdminApp" type="button">ติดตั้ง K-QCENTER</button>
           <button class="icon-button notification" aria-label="การแจ้งเตือน">♢<b>3</b></button>
           <div class="profile">
             <div class="avatar">กส</div>
@@ -120,6 +120,15 @@
   </div>
 
   <div class="toast" id="toast" role="status"></div>
+  <div class="admin-install-guide hidden" id="adminInstallGuide" role="dialog" aria-modal="true" aria-labelledby="adminInstallTitle">
+    <div class="admin-install-card">
+      <button class="install-guide-close" id="closeAdminInstall" type="button" aria-label="ปิด">×</button>
+      <span class="eyebrow">INSTALL K-QCENTER</span>
+      <h2 id="adminInstallTitle">ติดตั้งแอปหลังบ้าน</h2>
+      <div id="adminInstallContent"></div>
+      <button class="primary" id="dismissAdminInstall" type="button">เข้าใจแล้ว</button>
+    </div>
+  </div>
   <div class="auth-gate" id="authGate">
     <form class="auth-card" id="authForm">
       <div class="auth-brand"><div class="brand-mark">KQ</div><div><strong>K-QCENTER</strong><span>ระบบบริหารจัดการคิว</span></div></div>

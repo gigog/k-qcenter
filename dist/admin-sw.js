@@ -1,5 +1,5 @@
 'use strict';
-const ADMIN_CACHE='k-qcenter-admin-v1';
+const ADMIN_CACHE='k-qcenter-admin-v2';
 const ADMIN_ASSETS=['styles.css','auth.css','admin-crud.css','schedule.css','app.js','auth.js','admin-crud.js','admin-pwa.js','admin-manifest.webmanifest','icons/admin-icon.svg','icons/admin-icon-192.png','icons/admin-icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(ADMIN_CACHE).then(cache=>cache.addAll(ADMIN_ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('k-qcenter-admin-')&&key!==ADMIN_CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
