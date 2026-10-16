@@ -133,7 +133,7 @@ try {
     }
 
     if ($action === 'kiosk-templates') {
-        requireUser();
+        requireAdmin();
         $rows=$pdo->query('SELECT k.*,g.name building_name,(SELECT COUNT(*) FROM kiosk_menu_items m WHERE m.template_id=k.id) menu_count FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id ORDER BY k.id')->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
     }
@@ -148,7 +148,13 @@ try {
     }
 
     if ($action === 'kiosk-menu-items') {
-        requireUser();$templateId=(int)($_GET['template_id']??0);$stmt=$pdo->prepare('SELECT m.*,d.name department_name,s.name service_name FROM kiosk_menu_items m LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN services s ON s.id=m.service_id WHERE m.template_id=? ORDER BY COALESCE(m.parent_id,0),m.sort_order,m.id');$stmt->execute([$templateId]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+        requireAdmin();$templateId=(int)($_GET['template_id']??0);$stmt=$pdo->prepare('SELECT m.*,d.name department_name,s.name service_name FROM kiosk_menu_items m LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN services s ON s.id=m.service_id WHERE m.template_id=? ORDER BY COALESCE(m.parent_id,0),m.sort_order,m.id');$stmt->execute([$templateId]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+    }
+
+    if ($action === 'kiosk-template-selector') {
+        $user=requireUser();if(!in_array((string)$user['role'],['admin','kiosk_admin','kiosk_manager'],true))fail('บัญชีนี้ไม่มีสิทธิ์เปลี่ยน Template ของ Kiosk',403);
+        $rows=$pdo->query('SELECT k.code,k.name,k.location_label,g.name building_name FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id WHERE k.active=1 AND g.active=1 ORDER BY g.name,k.name')->fetchAll();
+        audit((int)$user['id'],'VIEW_KIOSK_TEMPLATE_SELECTOR','kiosk_template');respond(['ok'=>true,'data'=>$rows]);
     }
 
     if ($action === 'save-kiosk-menu-item') {
