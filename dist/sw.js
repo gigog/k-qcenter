@@ -1,5 +1,5 @@
 'use strict';
-const CACHE='k-qonline-v1';
+const CACHE='k-qonline-v2';
 const APP_SHELL=['./','online.html','status.html','public-queue.css','ticket.css','online.js','status.js','qrcode.js','manifest.webmanifest','icons/app-icon.svg','icons/app-icon-192.png','icons/app-icon-512.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(APP_SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

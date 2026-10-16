@@ -1,10 +1,14 @@
 'use strict';
 const api='../api/index.php';const $=id=>document.getElementById(id);
 let installPrompt=null;
+const isIos=/iphone|ipad|ipod/i.test(navigator.userAgent);const isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 function updateNetworkStatus(){const offline=!navigator.onLine;$('networkStatus').classList.toggle('hidden',!offline);document.querySelector('#bookingForm button[type="submit"],#bookingForm button:not([type])').disabled=offline}
 window.addEventListener('online',()=>{updateNetworkStatus();loadSlots().catch(showError)});window.addEventListener('offline',updateNetworkStatus);updateNetworkStatus();
-window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installApp').classList.remove('hidden')});
-$('installApp').onclick=async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installApp').classList.add('hidden')};
+function showInstallGuide(){let html;if(isIos)html='<p>เปิดหน้านี้ด้วย Safari แล้วกดปุ่ม <strong>แชร์</strong> จากนั้นเลือก <strong>เพิ่มไปยังหน้าจอโฮม</strong></p>';else if(!window.isSecureContext)html='<p>การติดตั้งแอปต้องเปิดผ่าน HTTPS กรุณาใช้ลิงก์ HTTPS ของ K-QOnline</p>';else html='<p>เลือก <strong>ติดตั้งแอป</strong> หรือ <strong>เพิ่มลงในหน้าจอหลัก</strong> จากเมนูของ Chrome หากเมนูยังไม่แสดง ให้รีเฟรชหน้าแล้วลองอีกครั้ง</p>';$('installGuideContent').innerHTML=html;$('installGuide').classList.remove('hidden')}
+function closeInstallGuide(){$('installGuide').classList.add('hidden')}
+window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installApp').textContent='ติดตั้งแอป'});
+$('installApp').onclick=async()=>{if(isStandalone){$('installGuideContent').innerHTML='<p>K-QOnline ถูกเปิดในโหมดแอปแล้ว</p>';$('installGuide').classList.remove('hidden');return}if(!installPrompt){showInstallGuide();return}installPrompt.prompt();await installPrompt.userChoice;installPrompt=null};
+$('closeInstallGuide').onclick=closeInstallGuide;$('dismissInstallGuide').onclick=closeInstallGuide;$('installGuide').onclick=event=>{if(event.target===$('installGuide'))closeInstallGuide()};
 window.addEventListener('appinstalled',()=>{$('installApp').classList.add('hidden')});
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 function bangkokDate(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
