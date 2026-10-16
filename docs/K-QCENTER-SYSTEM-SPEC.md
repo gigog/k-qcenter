@@ -554,5 +554,5 @@ Audit log ควรมีผู้กระทำ บทบาท เวลา I
 
 กระบวนการรับคิวแบ่งเป็น 2 ช่องทาง ได้แก่ การจอง Slot ผ่าน K-QOnline แล้วเช็กอินที่ Kiosk และการรับคิว Walk-in ที่ Kiosk โดยตรง ทั้งสองช่องทางต้องตรวจ Capacity และสร้างคิวผ่าน K-QCENTER API เท่านั้น
 
-รายละเอียดการสแกน QR/กรอกรหัส การอ่านบัตร การสแกน QR ที่ Kiosk เพื่อดู Timeline และเวลารอ สถานะคิว การติดตามผ่าน Monitor การเรียกเวชระเบียน การเปิด Visit ใน HOSxP และ SLA ไม่เกิน 120 นาที กำหนดไว้ใน [K-QCENTER-QUEUE-WORKFLOW.md](K-QCENTER-QUEUE-WORKFLOW.md)
+รายละเอียดการสแกน QR/กรอกรหัส การอ่านบัตร การสแกน QR ที่ Kiosk หรือจากใบคิวด้วยมือถือเพื่อดู Timeline และเวลารอ การดูสถานะใน K-QOnline การติดตามผ่าน Monitor การเรียกเวชระเบียน การเปิด Visit ใน HOSxP และ SLA ไม่เกิน 120 นาที กำหนดไว้ใน [K-QCENTER-QUEUE-WORKFLOW.md](K-QCENTER-QUEUE-WORKFLOW.md)
 
