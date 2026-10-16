@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'admin',
+  scope_type TEXT NOT NULL DEFAULT 'ALL',
+  scope_id INTEGER,
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at TEXT
@@ -241,6 +243,8 @@ SQL);
 
     ensureColumn($pdo, 'branches', 'building_id', 'INTEGER REFERENCES buildings(id)');
     ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'TEXT');
+    ensureColumn($pdo, 'users', 'scope_type', "TEXT NOT NULL DEFAULT 'ALL'");
+    ensureColumn($pdo, 'users', 'scope_id', 'INTEGER');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -258,6 +262,8 @@ function migrateMariaDb(PDO $pdo): void
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) $pdo->exec($statement);
     ensureColumn($pdo, 'branches', 'building_id', 'BIGINT UNSIGNED NULL');
     ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'CHAR(64) NULL');
+    ensureColumn($pdo, 'users', 'scope_type', "VARCHAR(20) NOT NULL DEFAULT 'ALL'");
+    ensureColumn($pdo, 'users', 'scope_id', 'BIGINT UNSIGNED NULL');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -443,7 +449,7 @@ function currentUser(): ?array
 {
     startSecureSession();
     if (empty($_SESSION['user_id'])) return null;
-    $stmt = db()->prepare('SELECT id,username,display_name,role FROM users WHERE id=? AND active=1');
+    $stmt = db()->prepare('SELECT id,username,display_name,role,scope_type,scope_id FROM users WHERE id=? AND active=1');
     $stmt->execute([$_SESSION['user_id']]);
     return $stmt->fetch() ?: null;
 }
@@ -476,6 +482,39 @@ function requireAdmin(): array
     $user = requireUser();
     if (($user['role'] ?? '') !== 'admin') fail('ไม่มีสิทธิ์ดำเนินการ', 403);
     return $user;
+}
+
+function requireRoles(array $roles): array
+{
+    $user = requireUser();
+    if (!in_array((string)($user['role'] ?? ''), $roles, true)) fail('ไม่มีสิทธิ์ดำเนินการ', 403);
+    return $user;
+}
+
+function userScopeClause(array $user, string $departmentAlias = 'd'): array
+{
+    $type = strtoupper((string)($user['scope_type'] ?? 'ALL'));
+    $id = (int)($user['scope_id'] ?? 0);
+    if ($type === 'BRANCH' && $id > 0) return ["$departmentAlias.branch_id=?", [$id]];
+    if ($type === 'DEPARTMENT' && $id > 0) return ["$departmentAlias.id=?", [$id]];
+    return ['1=1', []];
+}
+
+function userCanAccessBuilding(PDO $pdo, array $user, int $buildingId): bool
+{
+    $type=strtoupper((string)($user['scope_type']??'ALL'));$scopeId=(int)($user['scope_id']??0);
+    if($type==='ALL')return true;
+    if($type==='BRANCH'){$stmt=$pdo->prepare('SELECT 1 FROM branches WHERE id=? AND building_id=?');$stmt->execute([$scopeId,$buildingId]);return (bool)$stmt->fetchColumn();}
+    if($type==='DEPARTMENT'){$stmt=$pdo->prepare('SELECT 1 FROM departments d JOIN branches b ON b.id=d.branch_id WHERE d.id=? AND b.building_id=?');$stmt->execute([$scopeId,$buildingId]);return (bool)$stmt->fetchColumn();}
+    return false;
+}
+
+function userCanAccessDepartment(array $user, int $departmentId, ?int $branchId = null): bool
+{
+    $type=strtoupper((string)($user['scope_type']??'ALL'));$scopeId=(int)($user['scope_id']??0);
+    if($type==='ALL')return true;
+    if($type==='DEPARTMENT')return $scopeId===$departmentId;
+    return $type==='BRANCH'&&$branchId!==null&&$scopeId===$branchId;
 }
 
 function audit(?int $userId, string $action, string $entityType, ?string $entityId = null, ?array $detail = null): void

@@ -97,6 +97,9 @@ function finishAuth(user) {
   authGate.classList.add('hidden');
   const profileName = document.querySelector('.profile strong');
   if (profileName) profileName.textContent = user.display_name;
+  const allowed={admin:null,kiosk_admin:['dashboard','branches','services','kiosks'],kiosk_manager:['dashboard'],counter:['dashboard','queues','capacity'],viewer:['dashboard','queues','capacity','branches','services']}[user.role]||['dashboard'];
+  document.querySelectorAll('.nav-item[data-view]').forEach(node=>node.classList.toggle('hidden',Array.isArray(allowed)&&!allowed.includes(node.dataset.view)));
+  const profileRole=document.querySelector('.profile span');if(profileRole)profileRole.textContent=({admin:'ผู้ดูแลระบบ',kiosk_admin:'ผู้ดูแล Kiosk',kiosk_manager:'ผู้ควบคุม Kiosk',counter:'เจ้าหน้าที่เคาน์เตอร์',viewer:'ผู้ดูรายงาน'}[user.role]||user.role);
   loadDashboard();
 }
 

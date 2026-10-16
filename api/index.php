@@ -53,22 +53,38 @@ try {
 
     if ($action === 'me') respond(['ok'=>true,'user'=>requireUser(),'csrf_token'=>csrfToken()]);
 
+    if ($action === 'users') {
+        requireAdmin();
+        $rows=$pdo->query("SELECT u.id,u.username,u.display_name,u.role,u.scope_type,u.scope_id,u.active,u.created_at,u.last_login_at,CASE WHEN u.scope_type='BRANCH' THEN (SELECT name FROM branches WHERE id=u.scope_id) WHEN u.scope_type='DEPARTMENT' THEN (SELECT name FROM departments WHERE id=u.scope_id) ELSE 'ทุกสาขาและแผนก' END scope_name FROM users u ORDER BY u.active DESC,u.display_name,u.id")->fetchAll();
+        respond(['ok'=>true,'data'=>$rows]);
+    }
+
+    if ($action === 'save-user') {
+        requireMethod('POST');$admin=requireAdmin();requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;
+        $username=trim((string)($in['username']??''));$displayName=trim((string)($in['display_name']??''));$password=(string)($in['password']??'');$role=strtolower(trim((string)($in['role']??'')));$scopeType=strtoupper(trim((string)($in['scope_type']??'ALL')));$scopeId=(int)($in['scope_id']??0)?:null;$active=!empty($in['active'])?1:0;
+        $roles=['admin','kiosk_admin','kiosk_manager','counter','viewer'];if(!preg_match('/^[A-Za-z0-9._-]{3,40}$/',$username)||mb_strlen($displayName)<2)fail('ชื่อผู้ใช้หรือชื่อแสดงผลไม่ถูกต้อง');if(!in_array($role,$roles,true))fail('บทบาทไม่ถูกต้อง');if(!in_array($scopeType,['ALL','BRANCH','DEPARTMENT'],true))fail('ขอบเขตสิทธิ์ไม่ถูกต้อง');
+        if($scopeType==='ALL')$scopeId=null;else{if(!$scopeId)fail('กรุณาเลือกขอบเขตสาขาหรือแผนก');$table=$scopeType==='BRANCH'?'branches':'departments';$check=$pdo->prepare("SELECT 1 FROM $table WHERE id=?");$check->execute([$scopeId]);if(!$check->fetchColumn())fail('ไม่พบขอบเขตที่เลือก',404);}
+        if(!$isEdit&&strlen($password)<10)fail('รหัสผ่านต้องมีอย่างน้อย 10 ตัวอักษร');if($password!==''&&strlen($password)<10)fail('รหัสผ่านใหม่ต้องมีอย่างน้อย 10 ตัวอักษร');
+        if($id===(int)$admin['id']&&(!$active||$role!=='admin'))fail('ไม่สามารถปิดบัญชีหรือลดสิทธิ์บัญชีที่กำลังใช้งาน');
+        try{if($isEdit){$check=$pdo->prepare('SELECT id FROM users WHERE id=?');$check->execute([$id]);if(!$check->fetchColumn())fail('ไม่พบบัญชีผู้ใช้',404);if($password!=='')$pdo->prepare('UPDATE users SET username=?,display_name=?,password_hash=?,role=?,scope_type=?,scope_id=?,active=? WHERE id=?')->execute([$username,$displayName,password_hash($password,PASSWORD_DEFAULT),$role,$scopeType,$scopeId,$active,$id]);else $pdo->prepare('UPDATE users SET username=?,display_name=?,role=?,scope_type=?,scope_id=?,active=? WHERE id=?')->execute([$username,$displayName,$role,$scopeType,$scopeId,$active,$id]);}else{$pdo->prepare('INSERT INTO users(username,display_name,password_hash,role,scope_type,scope_id,active) VALUES (?,?,?,?,?,?,?)')->execute([$username,$displayName,password_hash($password,PASSWORD_DEFAULT),$role,$scopeType,$scopeId,$active]);$id=(int)$pdo->lastInsertId();}}catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('ชื่อผู้ใช้นี้ถูกใช้งานแล้ว',409);throw $e;}
+        audit((int)$admin['id'],$isEdit?'UPDATE_USER':'CREATE_USER','user',(string)$id,['username'=>$username,'role'=>$role,'scope_type'=>$scopeType,'scope_id'=>$scopeId,'active'=>$active,'password_changed'=>$password!=='']);respond(['ok'=>true,'id'=>$id]);
+    }
+
     if ($action === 'dashboard') {
-        requireUser();
+        $user=requireUser();[$scopeSql,$scopeParams]=userScopeClause($user,'d');
         $date = $_GET['date'] ?? (new DateTimeImmutable('today', new DateTimeZone('Asia/Bangkok')))->format('Y-m-d');
         generateSlots($pdo, $date);
-        $stmt = $pdo->prepare("SELECT COUNT(*) total, SUM(CASE WHEN status='COMPLETED' THEN 1 ELSE 0 END) completed, SUM(CASE WHEN status IN ('CONFIRMED','CHECKED_IN','WAITING','CALLED','SERVING') THEN 1 ELSE 0 END) active FROM bookings b JOIN slots s ON s.id=b.slot_id WHERE s.slot_date=?");
-        $stmt->execute([$date]); $summary = $stmt->fetch();
-        $stmt = $pdo->prepare('SELECT d.id,d.name,d.counter_count,d.efficiency,COALESCE(SUM(s.capacity),0) capacity,COALESCE(SUM(s.booked_count),0) booked FROM departments d LEFT JOIN slots s ON s.department_id=d.id AND s.slot_date=? WHERE d.active=1 GROUP BY d.id ORDER BY d.id');
-        $stmt->execute([$date]); $departments = $stmt->fetchAll();
-        $stmt = $pdo->prepare('SELECT COALESCE(SUM(capacity),0) capacity,COALESCE(SUM(booked_count),0) booked FROM slots WHERE slot_date=? AND active=1');
-        $stmt->execute([$date]); $cap = $stmt->fetch();
+        $stmt = $pdo->prepare("SELECT COUNT(*) total, SUM(CASE WHEN b.status='COMPLETED' THEN 1 ELSE 0 END) completed, SUM(CASE WHEN b.status IN ('CONFIRMED','CHECKED_IN','WAITING','CALLED','SERVING') THEN 1 ELSE 0 END) active FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id WHERE s.slot_date=? AND $scopeSql");
+        $stmt->execute(array_merge([$date],$scopeParams)); $summary = $stmt->fetch();
+        $stmt = $pdo->prepare("SELECT d.id,d.name,d.counter_count,d.efficiency,COALESCE(SUM(s.capacity),0) capacity,COALESCE(SUM(s.booked_count),0) booked FROM departments d LEFT JOIN slots s ON s.department_id=d.id AND s.slot_date=? WHERE d.active=1 AND $scopeSql GROUP BY d.id ORDER BY d.id");
+        $stmt->execute(array_merge([$date],$scopeParams)); $departments = $stmt->fetchAll();
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(s.capacity),0) capacity,COALESCE(SUM(s.booked_count),0) booked FROM slots s JOIN departments d ON d.id=s.department_id WHERE s.slot_date=? AND s.active=1 AND $scopeSql");
+        $stmt->execute(array_merge([$date],$scopeParams)); $cap = $stmt->fetch();
         respond(['ok'=>true,'date'=>$date,'summary'=>['total'=>(int)($summary['total']??0),'completed'=>(int)($summary['completed']??0),'active'=>(int)($summary['active']??0),'capacity'=>(int)$cap['capacity'],'booked'=>(int)$cap['booked']],'departments'=>$departments]);
     }
 
     if ($action === 'branches') {
-        requireUser();
-        $rows = $pdo->query('SELECT b.*,g.name building_name,g.is_24_hours building_24,COUNT(DISTINCT d.id) department_count,COALESCE(SUM(d.counter_count),0) counter_count FROM branches b LEFT JOIN buildings g ON g.id=b.building_id LEFT JOIN departments d ON d.branch_id=b.id GROUP BY b.id ORDER BY b.id')->fetchAll();
+        $user=requireUser();$scopeType=strtoupper((string)($user['scope_type']??'ALL'));$scopeId=(int)($user['scope_id']??0);$where='1=1';$params=[];if($scopeType==='BRANCH'&&$scopeId){$where='b.id=?';$params=[$scopeId];}elseif($scopeType==='DEPARTMENT'&&$scopeId){$where='b.id=(SELECT branch_id FROM departments WHERE id=?)';$params=[$scopeId];}$stmt=$pdo->prepare("SELECT b.*,g.name building_name,g.is_24_hours building_24,COUNT(DISTINCT d.id) department_count,COALESCE(SUM(d.counter_count),0) counter_count FROM branches b LEFT JOIN buildings g ON g.id=b.building_id LEFT JOIN departments d ON d.branch_id=b.id WHERE $where GROUP BY b.id ORDER BY b.id");$stmt->execute($params);$rows=$stmt->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
     }
 
@@ -95,8 +111,7 @@ try {
     }
 
     if ($action === 'departments') {
-        requireUser();
-        $rows = $pdo->query('SELECT d.*,b.name branch_name FROM departments d JOIN branches b ON b.id=d.branch_id ORDER BY b.id,d.id')->fetchAll();
+        $user=requireUser();[$scopeSql,$scopeParams]=userScopeClause($user,'d');$stmt=$pdo->prepare("SELECT d.*,b.name branch_name FROM departments d JOIN branches b ON b.id=d.branch_id WHERE $scopeSql ORDER BY b.id,d.id");$stmt->execute($scopeParams);$rows=$stmt->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
     }
 
@@ -115,8 +130,7 @@ try {
     }
 
     if ($action === 'services') {
-        requireUser();
-        $rows = $pdo->query('SELECT s.*,d.name department_name FROM services s JOIN departments d ON d.id=s.department_id ORDER BY d.id,s.id')->fetchAll();
+        $user=requireUser();[$scopeSql,$scopeParams]=userScopeClause($user,'d');$stmt=$pdo->prepare("SELECT s.*,d.name department_name FROM services s JOIN departments d ON d.id=s.department_id WHERE $scopeSql ORDER BY d.id,s.id");$stmt->execute($scopeParams);$rows=$stmt->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
     }
 
@@ -133,37 +147,39 @@ try {
     }
 
     if ($action === 'kiosk-templates') {
-        requireAdmin();
-        $rows=$pdo->query('SELECT k.*,g.name building_name,(SELECT COUNT(*) FROM kiosk_menu_items m WHERE m.template_id=k.id) menu_count FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id ORDER BY k.id')->fetchAll();
+        $user=requireRoles(['admin','kiosk_admin']);$rows=$pdo->query('SELECT k.*,g.name building_name,(SELECT COUNT(*) FROM kiosk_menu_items m WHERE m.template_id=k.id) menu_count FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id ORDER BY k.id')->fetchAll();$rows=array_values(array_filter($rows,fn($row)=>userCanAccessBuilding($pdo,$user,(int)$row['building_id'])));
         respond(['ok'=>true,'data'=>$rows]);
     }
 
     if ($action === 'save-kiosk-template') {
-        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;
+        requireMethod('POST');$user=requireRoles(['admin','kiosk_admin']);requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;
         $buildingId=(int)($in['building_id']??0);$code=strtoupper(trim((string)($in['code']??'')));$name=trim((string)($in['name']??''));$location=trim((string)($in['location_label']??''));$active=!empty($in['active'])?1:0;
         if($buildingId<1||!preg_match('/^[A-Z0-9_-]{2,40}$/',$code)||mb_strlen($name)<2)fail('ข้อมูลจุด Kiosk ไม่ครบถ้วน');
+        if(!userCanAccessBuilding($pdo,$user,$buildingId))fail('ไม่มีสิทธิ์จัดการ Kiosk ของอาคารนี้',403);
         $exists=$pdo->prepare('SELECT 1 FROM buildings WHERE id=?');$exists->execute([$buildingId]);if(!$exists->fetchColumn())fail('ไม่พบอาคาร',404);
         try{if($id)$pdo->prepare('UPDATE kiosk_templates SET building_id=?,code=?,name=?,location_label=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$buildingId,$code,$name,$location,$active,$id]);else{$pdo->prepare('INSERT INTO kiosk_templates(building_id,code,name,location_label,active) VALUES (?,?,?,?,?)')->execute([$buildingId,$code,$name,$location,$active]);$id=(int)$pdo->lastInsertId();}}catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัส Kiosk นี้ถูกใช้งานแล้ว',409);throw $e;}
         audit((int)$user['id'],$isEdit?'UPDATE_KIOSK_TEMPLATE':'CREATE_KIOSK_TEMPLATE','kiosk_template',(string)$id,['code'=>$code]);respond(['ok'=>true,'id'=>$id]);
     }
 
     if ($action === 'kiosk-menu-items') {
-        requireAdmin();$templateId=(int)($_GET['template_id']??0);$stmt=$pdo->prepare('SELECT m.*,d.name department_name,s.name service_name FROM kiosk_menu_items m LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN services s ON s.id=m.service_id WHERE m.template_id=? ORDER BY COALESCE(m.parent_id,0),m.sort_order,m.id');$stmt->execute([$templateId]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+        $user=requireRoles(['admin','kiosk_admin']);$templateId=(int)($_GET['template_id']??0);$access=$pdo->prepare('SELECT building_id FROM kiosk_templates WHERE id=?');$access->execute([$templateId]);$buildingId=(int)$access->fetchColumn();if(!$buildingId)fail('ไม่พบ Kiosk Template',404);if(!userCanAccessBuilding($pdo,$user,$buildingId))fail('ไม่มีสิทธิ์จัดการ Kiosk นี้',403);$stmt=$pdo->prepare('SELECT m.*,d.name department_name,s.name service_name FROM kiosk_menu_items m LEFT JOIN departments d ON d.id=m.department_id LEFT JOIN services s ON s.id=m.service_id WHERE m.template_id=? ORDER BY COALESCE(m.parent_id,0),m.sort_order,m.id');$stmt->execute([$templateId]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
     }
 
     if ($action === 'kiosk-template-selector') {
         $user=requireUser();if(!in_array((string)$user['role'],['admin','kiosk_admin','kiosk_manager'],true))fail('บัญชีนี้ไม่มีสิทธิ์เปลี่ยน Template ของ Kiosk',403);
-        $rows=$pdo->query('SELECT k.code,k.name,k.location_label,g.name building_name FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id WHERE k.active=1 AND g.active=1 ORDER BY g.name,k.name')->fetchAll();
+        $scopeType=strtoupper((string)($user['scope_type']??'ALL'));$scopeId=(int)($user['scope_id']??0);$scopeSql='1=1';$scopeParams=[];if($scopeType==='BRANCH'&&$scopeId){$scopeSql='EXISTS(SELECT 1 FROM branches b WHERE b.id=? AND b.building_id=k.building_id)';$scopeParams=[$scopeId];}elseif($scopeType==='DEPARTMENT'&&$scopeId){$scopeSql='EXISTS(SELECT 1 FROM departments d JOIN branches b ON b.id=d.branch_id WHERE d.id=? AND b.building_id=k.building_id)';$scopeParams=[$scopeId];}$stmt=$pdo->prepare("SELECT k.code,k.name,k.location_label,g.name building_name FROM kiosk_templates k JOIN buildings g ON g.id=k.building_id WHERE k.active=1 AND g.active=1 AND $scopeSql ORDER BY g.name,k.name");$stmt->execute($scopeParams);$rows=$stmt->fetchAll();
         audit((int)$user['id'],'VIEW_KIOSK_TEMPLATE_SELECTOR','kiosk_template');respond(['ok'=>true,'data'=>$rows]);
     }
 
     if ($action === 'save-kiosk-menu-item') {
-        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;$templateId=(int)($in['template_id']??0);$parentId=(int)($in['parent_id']??0)?:null;$departmentId=(int)($in['department_id']??0)?:null;$serviceId=(int)($in['service_id']??0)?:null;
+        requireMethod('POST');$user=requireRoles(['admin','kiosk_admin']);requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;$templateId=(int)($in['template_id']??0);$parentId=(int)($in['parent_id']??0)?:null;$departmentId=(int)($in['department_id']??0)?:null;$serviceId=(int)($in['service_id']??0)?:null;
         $label=trim((string)($in['label']??''));$subtitle=trim((string)($in['subtitle']??''));$icon=mb_substr(trim((string)($in['icon']??'Q')),0,4);$order=max(0,(int)($in['sort_order']??0));$start=trim((string)($in['start_time']??''))?:null;$end=trim((string)($in['end_time']??''))?:null;$active=!empty($in['active'])?1:0;
         if($templateId<1||mb_strlen($label)<2)fail('กรุณาระบุชื่อปุ่มและ Kiosk');if($id&&$parentId===$id)fail('ปุ่มไม่สามารถเป็นเมนูย่อยของตัวเอง');
+        $access=$pdo->prepare('SELECT building_id FROM kiosk_templates WHERE id=?');$access->execute([$templateId]);$templateBuilding=(int)$access->fetchColumn();if(!$templateBuilding)fail('ไม่พบ Kiosk Template',404);if(!userCanAccessBuilding($pdo,$user,$templateBuilding))fail('ไม่มีสิทธิ์จัดการ Kiosk นี้',403);
         if(($start===null)!==($end===null)||($start!==null&&(!preg_match('/^\d{2}:\d{2}$/',$start)||!preg_match('/^\d{2}:\d{2}$/',$end))))fail('ช่วงเวลาแสดงปุ่มไม่ถูกต้อง');
         if($parentId){$check=$pdo->prepare('SELECT 1 FROM kiosk_menu_items WHERE id=? AND template_id=? AND parent_id IS NULL');$check->execute([$parentId,$templateId]);if(!$check->fetchColumn())fail('เมนูหลักไม่ถูกต้อง');}
         if($serviceId){$check=$pdo->prepare('SELECT department_id FROM services WHERE id=?');$check->execute([$serviceId]);$serviceDepartment=(int)$check->fetchColumn();if(!$serviceDepartment)fail('ไม่พบบริการ',404);if($departmentId&&$departmentId!==$serviceDepartment)fail('บริการไม่อยู่ในแผนกที่เลือก');$departmentId=$serviceDepartment;}
+        if($departmentId){$check=$pdo->prepare('SELECT d.branch_id,b.building_id FROM departments d JOIN branches b ON b.id=d.branch_id WHERE d.id=?');$check->execute([$departmentId]);$department=$check->fetch();if(!$department)fail('ไม่พบแผนก',404);if((int)$department['building_id']!==$templateBuilding)fail('แผนกไม่ได้อยู่ในอาคารของ Kiosk');if(!userCanAccessDepartment($user,$departmentId,(int)$department['branch_id']))fail('ไม่มีสิทธิ์ใช้แผนกนี้',403);}
         try{if($id)$pdo->prepare('UPDATE kiosk_menu_items SET template_id=?,parent_id=?,department_id=?,service_id=?,label=?,subtitle=?,icon=?,sort_order=?,start_time=?,end_time=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$templateId,$parentId,$departmentId,$serviceId,$label,$subtitle,$icon?:'Q',$order,$start,$end,$active,$id]);else{$pdo->prepare('INSERT INTO kiosk_menu_items(template_id,parent_id,department_id,service_id,label,subtitle,icon,sort_order,start_time,end_time,active) VALUES (?,?,?,?,?,?,?,?,?,?,?)')->execute([$templateId,$parentId,$departmentId,$serviceId,$label,$subtitle,$icon?:'Q',$order,$start,$end,$active]);$id=(int)$pdo->lastInsertId();}}catch(PDOException $e){throw $e;}
         audit((int)$user['id'],$isEdit?'UPDATE_KIOSK_MENU':'CREATE_KIOSK_MENU','kiosk_menu_item',(string)$id,['template_id'=>$templateId,'label'=>$label]);respond(['ok'=>true,'id'=>$id]);
     }
@@ -201,10 +217,10 @@ try {
     }
 
     if ($action === 'slots') {
-        requireUser();
+        $user=requireUser();[$scopeSql,$scopeParams]=userScopeClause($user,'d');
         $date = $_GET['date'] ?? date('Y-m-d'); generateSlots($pdo, $date);
-        $stmt = $pdo->prepare('SELECT s.*,d.name department_name,sv.name service_name FROM slots s JOIN departments d ON d.id=s.department_id LEFT JOIN services sv ON sv.id=s.service_id WHERE s.slot_date=? ORDER BY s.start_time,d.id');
-        $stmt->execute([$date]); respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+        $stmt = $pdo->prepare("SELECT s.*,d.name department_name,sv.name service_name FROM slots s JOIN departments d ON d.id=s.department_id LEFT JOIN services sv ON sv.id=s.service_id WHERE s.slot_date=? AND $scopeSql ORDER BY s.start_time,d.id");
+        $stmt->execute(array_merge([$date],$scopeParams)); respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
     }
 
     if ($action === 'update-slot') {
@@ -220,10 +236,10 @@ try {
     }
 
     if ($action === 'bookings') {
-        requireUser();
+        $user=requireUser();[$scopeSql,$scopeParams]=userScopeClause($user,'d');
         $date = $_GET['date'] ?? date('Y-m-d');
-        $stmt=$pdo->prepare('SELECT b.*,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id LEFT JOIN services sv ON sv.id=s.service_id WHERE s.slot_date=? ORDER BY s.start_time,b.id');
-        $stmt->execute([$date]); respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
+        $stmt=$pdo->prepare("SELECT b.*,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id LEFT JOIN services sv ON sv.id=s.service_id WHERE s.slot_date=? AND $scopeSql ORDER BY s.start_time,b.id");
+        $stmt->execute(array_merge([$date],$scopeParams)); respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
     }
 
     if ($action === 'create-booking') {
@@ -301,7 +317,7 @@ try {
     }
 
     if ($action === 'audit') {
-        requireUser();
+        requireAdmin();
         $rows=$pdo->query('SELECT a.*,u.display_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.id DESC LIMIT 100')->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
     }

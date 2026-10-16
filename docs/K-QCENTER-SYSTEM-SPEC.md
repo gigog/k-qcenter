@@ -562,5 +562,11 @@ Audit log ควรมีผู้กระทำ บทบาท เวลา I
 
 การเปลี่ยน Template จากหน้า Kiosk ต้องยืนยันรหัสผ่านก่อนแสดงรายการ Template อนุญาตเฉพาะบทบาท `admin`, `kiosk_admin` หรือ `kiosk_manager` และต้อง Logout session ที่ใช้ตั้งค่าทันทีหลังเลือกหรือปิดหน้าต่างตั้งค่า
 
+## 24. ผู้ใช้ บทบาท และขอบเขตสิทธิ์
+
+K-QCENTER ต้องจัดการบัญชีจากหน้าหลังบ้านได้ โดยรองรับบทบาท `admin`, `kiosk_admin`, `kiosk_manager`, `counter` และ `viewer` พร้อมขอบเขต `ALL`, `BRANCH` หรือ `DEPARTMENT` การบังคับสิทธิ์และขอบเขตต้องทำที่ API ฝั่งเซิร์ฟเวอร์ ไม่อาศัยเพียงการซ่อนเมนูบน Client
+
+รายละเอียดอยู่ใน [K-QCENTER-USERS-AND-PERMISSIONS.md](K-QCENTER-USERS-AND-PERMISSIONS.md)
+
 รายละเอียดการตั้งค่าและพฤติกรรมอยู่ใน [K-QCENTER-KIOSK-TEMPLATES.md](K-QCENTER-KIOSK-TEMPLATES.md)
 
