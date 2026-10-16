@@ -43,6 +43,8 @@ Browser เรียก `POST http://127.0.0.1:17890/read` ไปยัง Bridg
 
 ติดตั้ง Bridge บน Windows ด้วย `tools/install-smartcard-bridge.ps1` ระบบจะคัดลอกโปรแกรมไปยัง Local AppData และสร้าง Scheduled Task ชื่อ `K-QCENTER Smart Card Bridge` ให้เริ่มเมื่อผู้ใช้เข้าสู่ระบบ
 
+หน้า Kiosk ตรวจสุขภาพ Bridge ทุก 30 วินาทีและมีปุ่ม `↻` สำหรับรีเฟรชการเชื่อมต่อ PC/SC ทันที นอกจากนี้ Scheduled Task `K-QCENTER Smart Card Watchdog` ตรวจพอร์ตทุก 1 นาทีและเริ่ม Bridge ใหม่อัตโนมัติเมื่อโปรเซสหยุดทำงาน
+
 ## URL ช่วงทดลอง
 
 หน้า Kiosk อยู่ที่ `/dist/kiosk.html` ผ่าน Tailscale Serve และไม่ควรเปิดผ่าน Tailscale Funnel

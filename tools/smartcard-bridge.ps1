@@ -1,9 +1,11 @@
 param(
     [int]$Port = 17890,
-    [string[]]$AllowedOrigins = @('https://web-lab.tail53909d.ts.net:8443')
+    [string[]]$AllowedOrigins = @('https://web-lab.tail53909d.ts.net:8443'),
+    [int]$StartupDelayMs = 0
 )
 
 $ErrorActionPreference = 'Stop'
+if ($StartupDelayMs -gt 0) { Start-Sleep -Milliseconds $StartupDelayMs }
 
 Add-Type -TypeDefinition @'
 using System;
@@ -105,7 +107,16 @@ try {
             while (($line = $reader.ReadLine()) -ne '') { $pair=$line.Split(':',2); if($pair.Count -eq 2){$headers[$pair[0].Trim().ToLowerInvariant()]=$pair[1].Trim()} }
             $origin = [string]$headers['origin']
             if ($origin -notin $AllowedOrigins) { Write-HttpResponse $stream 403 '{"ok":false,"error":"Origin ไม่ได้รับอนุญาต"}' 'null'; continue }
-            if ($requestLine -match '^OPTIONS /read ') { Write-HttpResponse $stream 204 '' $origin; continue }
+            if ($requestLine -match '^OPTIONS /(read|health|restart) ') { Write-HttpResponse $stream 204 '' $origin; continue }
+            if ($requestLine -match '^GET /health ') { Write-HttpResponse $stream 200 '{"ok":true,"service":"K-QCENTER Smart Card Bridge"}' $origin; continue }
+            if ($requestLine -match '^POST /restart ') {
+                [IntPtr]$testContext = [IntPtr]::Zero
+                $testResult = [WinSCard]::SCardEstablishContext(0,[IntPtr]::Zero,[IntPtr]::Zero,[ref]$testContext)
+                if ($testContext -ne [IntPtr]::Zero) { [void][WinSCard]::SCardReleaseContext($testContext) }
+                if ($testResult -ne 0) { Write-HttpResponse $stream 400 '{"ok":false,"error":"Smart Card Resource Manager ไม่ตอบสนอง"}' $origin; continue }
+                Write-HttpResponse $stream 200 '{"ok":true,"restarted":true}' $origin
+                continue
+            }
             if ($requestLine -notmatch '^POST /read ') { Write-HttpResponse $stream 400 '{"ok":false,"error":"Endpoint ไม่ถูกต้อง"}' $origin; continue }
             try { $data=Read-ThaiIdentityCard; Write-HttpResponse $stream 200 ((@{ok=$true;data=$data}|ConvertTo-Json -Compress)) $origin }
             catch { Write-HttpResponse $stream 400 ((@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress)) $origin }
