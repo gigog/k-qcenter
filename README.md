@@ -24,6 +24,16 @@ http://localhost/k-qcenter/
 - Kiosk: `http://localhost/k-qcenter/dist/kiosk.html`
 - ตรวจสอบสถานะคิว: `http://localhost/k-qcenter/dist/status.html`
 
+### ติดตั้ง K-QOnline บนมือถือ
+
+K-QOnline เป็น Progressive Web App (PWA) ติดตั้งจาก HTTPS ได้โดยไม่ต้องดาวน์โหลดจาก Store:
+
+1. เปิดหน้า K-QOnline ด้วย Chrome บน Android หรือ Safari บน iPhone/iPad
+2. Android กด **ติดตั้งแอป** หรือเมนู **เพิ่มลงในหน้าจอหลัก**
+3. iPhone/iPad กด **แชร์** แล้วเลือก **เพิ่มไปยังหน้าจอโฮม**
+
+แอปเปิดดูหน้าที่เคยใช้งานได้เมื่อสัญญาณขาดช่วง แต่การค้นหา Slot การจอง และการอัปเดตสถานะต้องออนไลน์เสมอเพื่อรักษา Capacity และสถานะคิวจาก K-QCENTER ให้ถูกต้อง
+
 เมื่อเปิดครั้งแรก ระบบจะสร้างฐานข้อมูล SQLite และแสดงหน้าสร้างบัญชีผู้ดูแล ให้ใช้รหัสผ่านอย่างน้อย 10 ตัวอักษร จากนั้นข้อมูลสาขา แผนก บริการ Slot การจอง และ Audit log จะถูกบันทึกใน `data/kqcenter.sqlite`
 
 โฟลเดอร์ที่ใช้ให้บริการหน้าเว็บคือ `dist/` และสามารถนำพอร์ตของ Apache ออก HTTPS ผ่าน Tailscale Serve สำหรับหลังบ้านได้

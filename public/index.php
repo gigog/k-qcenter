@@ -38,6 +38,11 @@ $routes = [
     '/qrcode.js' => ['dist/qrcode.js', 'text/javascript; charset=utf-8'],
     '/public-queue.css' => ['dist/public-queue.css', 'text/css; charset=utf-8'],
     '/ticket.css' => ['dist/ticket.css', 'text/css; charset=utf-8'],
+    '/manifest.webmanifest' => ['dist/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
+    '/sw.js' => ['dist/sw.js', 'text/javascript; charset=utf-8'],
+    '/icons/app-icon.svg' => ['dist/icons/app-icon.svg', 'image/svg+xml'],
+    '/icons/app-icon-192.png' => ['dist/icons/app-icon-192.png', 'image/png'],
+    '/icons/app-icon-512.png' => ['dist/icons/app-icon-512.png', 'image/png'],
 ];
 
 if (!isset($routes[$requestPath])) {
@@ -57,6 +62,6 @@ if (!is_file($file)) {
 }
 
 header('Content-Type: ' . $contentType);
-header(str_ends_with($relativeFile, '.html') ? 'Cache-Control: no-store' : 'Cache-Control: public, max-age=3600');
+header(str_ends_with($relativeFile, '.html') || str_ends_with($relativeFile, 'sw.js') ? 'Cache-Control: no-store' : 'Cache-Control: public, max-age=3600');
 readfile($file);
 
