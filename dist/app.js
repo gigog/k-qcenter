@@ -1,5 +1,4 @@
-const thaiDate = new Intl.DateTimeFormat('th-TH-u-ca-buddhist', { weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone:'Asia/Bangkok' });
-document.getElementById('todayText').textContent = thaiDate.format(new Date());
+document.getElementById('todayText').textContent = KQThaiDate.date(new Date(),{weekday:'long'});
 
 const departments = [
   {name:'แผนกทะเบียน', meta:'4 ช่องบริการ · เฉลี่ย 14 นาที', used:19, total:24, color:'#2b65d9'},

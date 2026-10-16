@@ -35,6 +35,7 @@ $routes = [
     '/status.html' => ['dist/status.html', 'text/html; charset=utf-8'],
     '/online.js' => ['dist/online.js', 'text/javascript; charset=utf-8'],
     '/status.js' => ['dist/status.js', 'text/javascript; charset=utf-8'],
+    '/thai-date.js' => ['dist/thai-date.js', 'text/javascript; charset=utf-8'],
     '/qrcode.js' => ['dist/qrcode.js', 'text/javascript; charset=utf-8'],
     '/public-queue.css' => ['dist/public-queue.css', 'text/css; charset=utf-8'],
     '/ticket.css' => ['dist/ticket.css', 'text/css; charset=utf-8'],
