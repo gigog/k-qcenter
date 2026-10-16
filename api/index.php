@@ -68,21 +68,28 @@ try {
 
     if ($action === 'branches') {
         requireUser();
-        $rows = $pdo->query('SELECT b.*, COUNT(DISTINCT d.id) department_count, COALESCE(SUM(d.counter_count),0) counter_count FROM branches b LEFT JOIN departments d ON d.branch_id=b.id GROUP BY b.id ORDER BY b.id')->fetchAll();
+        $rows = $pdo->query('SELECT b.*,g.name building_name,g.is_24_hours building_24,COUNT(DISTINCT d.id) department_count,COALESCE(SUM(d.counter_count),0) counter_count FROM branches b LEFT JOIN buildings g ON g.id=b.building_id LEFT JOIN departments d ON d.branch_id=b.id GROUP BY b.id ORDER BY b.id')->fetchAll();
         respond(['ok'=>true,'data'=>$rows]);
+    }
+
+    if ($action === 'buildings') { requireUser();respond(['ok'=>true,'data'=>$pdo->query('SELECT * FROM buildings ORDER BY id')->fetchAll()]); }
+    if ($action === 'save-building') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$id=(int)($in['id']??0);$isEdit=$id>0;$code=strtoupper(trim((string)($in['code']??'')));$name=trim((string)($in['name']??''));$is24=!empty($in['is_24_hours'])?1:0;$open=$is24?null:(string)($in['open_time']??'');$close=$is24?null:(string)($in['close_time']??'');$active=!empty($in['active'])?1:0;
+        if(!preg_match('/^[A-Z0-9_-]{2,20}$/',$code)||mb_strlen($name)<2)fail('ข้อมูลอาคารไม่ครบถ้วน');if(!$is24&&(!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close))fail('เวลาเปิดอาคารไม่ถูกต้อง');
+        try{if($id)$pdo->prepare('UPDATE buildings SET code=?,name=?,is_24_hours=?,open_time=?,close_time=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$code,$name,$is24,$open,$close,$active,$id]);else{$pdo->prepare('INSERT INTO buildings(code,name,is_24_hours,open_time,close_time,active) VALUES (?,?,?,?,?,?)')->execute([$code,$name,$is24,$open,$close,$active]);$id=(int)$pdo->lastInsertId();}}catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัสอาคารนี้ถูกใช้งานแล้ว',409);throw $e;}audit((int)$user['id'],$isEdit?'UPDATE_BUILDING':'CREATE_BUILDING','building',(string)$id);respond(['ok'=>true,'id'=>$id]);
     }
 
     if ($action === 'save-branch') {
         requireMethod('POST'); $user=requireAdmin(); requireCsrf(); $in=jsonInput();
-        $id=(int)($in['id']??0); $isEdit=$id>0; $code=strtoupper(trim((string)($in['code']??''))); $name=trim((string)($in['name']??''));
+        $id=(int)($in['id']??0); $isEdit=$id>0; $code=strtoupper(trim((string)($in['code']??''))); $name=trim((string)($in['name']??''));$buildingId=(int)($in['building_id']??$pdo->query('SELECT id FROM buildings ORDER BY id LIMIT 1')->fetchColumn());
         $open=(string)($in['open_time']??''); $close=(string)($in['close_time']??''); $buffer=(int)($in['closing_buffer_minutes']??30); $active=!empty($in['active'])?1:0;
         if(!preg_match('/^[A-Z0-9_-]{2,20}$/',$code)) fail('รหัสสาขาไม่ถูกต้อง');
         if(mb_strlen($name)<2) fail('กรุณาระบุชื่อสาขา');
         if(!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close) fail('เวลาทำการไม่ถูกต้อง');
         if($buffer<0||$buffer>180) fail('Closing buffer ต้องอยู่ระหว่าง 0–180 นาที');
         try {
-            if($id){$old=$pdo->prepare('SELECT * FROM branches WHERE id=?');$old->execute([$id]);if(!$old->fetch())fail('ไม่พบสาขา',404);$pdo->prepare('UPDATE branches SET code=?,name=?,open_time=?,close_time=?,closing_buffer_minutes=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$code,$name,$open,$close,$buffer,$active,$id]);}
-            else{$pdo->prepare('INSERT INTO branches(code,name,open_time,close_time,closing_buffer_minutes,active) VALUES (?,?,?,?,?,?)')->execute([$code,$name,$open,$close,$buffer,$active]);$id=(int)$pdo->lastInsertId();}
+            if($id){$old=$pdo->prepare('SELECT * FROM branches WHERE id=?');$old->execute([$id]);if(!$old->fetch())fail('ไม่พบสาขา',404);$pdo->prepare('UPDATE branches SET building_id=?,code=?,name=?,open_time=?,close_time=?,closing_buffer_minutes=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$buildingId,$code,$name,$open,$close,$buffer,$active,$id]);}
+            else{$pdo->prepare('INSERT INTO branches(building_id,code,name,open_time,close_time,closing_buffer_minutes,active) VALUES (?,?,?,?,?,?,?)')->execute([$buildingId,$code,$name,$open,$close,$buffer,$active]);$id=(int)$pdo->lastInsertId();}
         } catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('รหัสสาขานี้ถูกใช้งานแล้ว',409);throw $e;}
         audit((int)$user['id'],$isEdit?'UPDATE_BRANCH':'CREATE_BRANCH','branch',(string)$id,['code'=>$code,'name'=>$name]); respond(['ok'=>true,'id'=>$id]);
     }
@@ -126,19 +133,27 @@ try {
     }
 
     if ($action === 'calendars') {
-        requireUser();$rows=$pdo->query('SELECT c.*,b.name branch_name FROM calendar_overrides c JOIN branches b ON b.id=c.branch_id ORDER BY c.override_date DESC,c.id DESC')->fetchAll();respond(['ok'=>true,'data'=>$rows]);
+        requireUser();$rows=$pdo->query("SELECT o.*,CASE WHEN o.scope_type='BRANCH' THEN b.name ELSE d.name END scope_name,b2.name branch_name FROM schedule_overrides o LEFT JOIN branches b ON o.scope_type='BRANCH' AND b.id=o.scope_id LEFT JOIN departments d ON o.scope_type='DEPARTMENT' AND d.id=o.scope_id LEFT JOIN branches b2 ON b2.id=d.branch_id ORDER BY o.override_date DESC,o.id DESC")->fetchAll();respond(['ok'=>true,'data'=>$rows]);
     }
 
     if ($action === 'save-calendar') {
         requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();
-        $id=(int)($in['id']??0);$isEdit=$id>0;$branchId=(int)($in['branch_id']??0);$date=(string)($in['override_date']??'');$name=trim((string)($in['name']??''));$closed=!empty($in['is_closed'])?1:0;$open=$closed?null:(string)($in['open_time']??'');$close=$closed?null:(string)($in['close_time']??'');$note=trim((string)($in['note']??''));$active=!empty($in['active'])?1:0;
-        if($branchId<1||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)||mb_strlen($name)<2)fail('ข้อมูลปฏิทินไม่ครบถ้วน');
+        $id=(int)($in['id']??0);$isEdit=$id>0;$scopeType=strtoupper((string)($in['scope_type']??'BRANCH'));$scopeId=(int)($in['scope_id']??0);$date=(string)($in['override_date']??'');$name=trim((string)($in['name']??''));$closed=!empty($in['is_closed'])?1:0;$open=$closed?null:(string)($in['open_time']??'');$close=$closed?null:(string)($in['close_time']??'');$counters=isset($in['counter_count'])&&$in['counter_count']!==''?(int)$in['counter_count']:null;$note=trim((string)($in['note']??''));$active=!empty($in['active'])?1:0;
+        if(!in_array($scopeType,['BRANCH','DEPARTMENT'],true)||$scopeId<1||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)||mb_strlen($name)<2)fail('ข้อมูลปฏิทินไม่ครบถ้วน');
         if(!$closed&&(!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close))fail('เวลาทำการพิเศษไม่ถูกต้อง');
         try{
-            if($id){$pdo->prepare('UPDATE calendar_overrides SET branch_id=?,override_date=?,name=?,is_closed=?,open_time=?,close_time=?,note=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$branchId,$date,$name,$closed,$open,$close,$note,$active,$id]);}
-            else{$pdo->prepare('INSERT INTO calendar_overrides(branch_id,override_date,name,is_closed,open_time,close_time,note,active) VALUES (?,?,?,?,?,?,?,?)')->execute([$branchId,$date,$name,$closed,$open,$close,$note,$active]);$id=(int)$pdo->lastInsertId();}
+            if($id){$pdo->prepare('UPDATE schedule_overrides SET scope_type=?,scope_id=?,override_date=?,name=?,is_closed=?,open_time=?,close_time=?,counter_count=?,note=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$scopeType,$scopeId,$date,$name,$closed,$open,$close,$counters,$note,$active,$id]);}
+            else{$pdo->prepare('INSERT INTO schedule_overrides(scope_type,scope_id,override_date,name,is_closed,open_time,close_time,counter_count,note,active) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$scopeType,$scopeId,$date,$name,$closed,$open,$close,$counters,$note,$active]);$id=(int)$pdo->lastInsertId();}
         }catch(PDOException $e){if(str_contains($e->getMessage(),'UNIQUE'))fail('มีการตั้งค่าสาขาและวันที่นี้แล้ว',409);throw $e;}
         audit((int)$user['id'],$isEdit?'UPDATE_CALENDAR':'CREATE_CALENDAR','calendar_override',(string)$id,['date'=>$date,'name'=>$name]);respond(['ok'=>true,'id'=>$id]);
+    }
+
+    if ($action === 'weekly-hours') { requireUser();$type=strtoupper((string)($_GET['scope_type']??''));$id=(int)($_GET['scope_id']??0);$stmt=$pdo->prepare('SELECT * FROM weekly_hours WHERE scope_type=? AND scope_id=? ORDER BY weekday,interval_order');$stmt->execute([$type,$id]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]); }
+    if ($action === 'save-weekly-hours') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$type=strtoupper((string)($in['scope_type']??''));$scopeId=(int)($in['scope_id']??0);$items=$in['intervals']??[];if(!in_array($type,['BRANCH','DEPARTMENT'],true)||$scopeId<1||!is_array($items))fail('ข้อมูลตารางเวลาไม่ถูกต้อง');
+        $clean=[];foreach($items as $item){$day=(int)($item['weekday']??0);$open=(string)($item['open_time']??'');$close=(string)($item['close_time']??'');if($day<1||$day>7||!preg_match('/^\d{2}:\d{2}$/',$open)||!preg_match('/^\d{2}:\d{2}$/',$close)||$open>=$close)fail('ช่วงเวลาไม่ถูกต้อง');$clean[$day][]=[$open,$close];}
+        foreach($clean as $day=>$ranges){usort($ranges,fn($a,$b)=>strcmp($a[0],$b[0]));for($i=1;$i<count($ranges);$i++)if($ranges[$i][0]<$ranges[$i-1][1])fail('ช่วงเวลาในวันเดียวกันซ้อนกัน');}
+        $pdo->beginTransaction();try{$pdo->prepare('DELETE FROM weekly_hours WHERE scope_type=? AND scope_id=?')->execute([$type,$scopeId]);$pdo->prepare('INSERT INTO weekly_schedule_config(scope_type,scope_id,updated_at) VALUES (?,?,CURRENT_TIMESTAMP) ON CONFLICT(scope_type,scope_id) DO UPDATE SET updated_at=CURRENT_TIMESTAMP')->execute([$type,$scopeId]);$stmt=$pdo->prepare('INSERT INTO weekly_hours(scope_type,scope_id,weekday,interval_order,open_time,close_time) VALUES (?,?,?,?,?,?)');foreach($clean as $day=>$ranges)foreach($ranges as $index=>$range)$stmt->execute([$type,$scopeId,$day,$index+1,$range[0],$range[1]]);$pdo->commit();}catch(Throwable $e){$pdo->rollBack();throw $e;}audit((int)$user['id'],'UPDATE_WEEKLY_HOURS',strtolower($type),(string)$scopeId,['interval_count'=>count($items)]);respond(['ok'=>true]);
     }
 
     if ($action === 'slots') {

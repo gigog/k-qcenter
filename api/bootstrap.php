@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login_at TEXT
 );
+CREATE TABLE IF NOT EXISTS buildings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  is_24_hours INTEGER NOT NULL DEFAULT 0,
+  open_time TEXT,
+  close_time TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS branches (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   code TEXT NOT NULL UNIQUE,
@@ -89,6 +100,39 @@ CREATE TABLE IF NOT EXISTS calendar_overrides (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(branch_id, override_date)
 );
+CREATE TABLE IF NOT EXISTS weekly_hours (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope_type TEXT NOT NULL CHECK(scope_type IN ('BRANCH','DEPARTMENT')),
+  scope_id INTEGER NOT NULL,
+  weekday INTEGER NOT NULL CHECK(weekday BETWEEN 1 AND 7),
+  interval_order INTEGER NOT NULL DEFAULT 1,
+  open_time TEXT NOT NULL,
+  close_time TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  UNIQUE(scope_type, scope_id, weekday, interval_order)
+);
+CREATE TABLE IF NOT EXISTS weekly_schedule_config (
+  scope_type TEXT NOT NULL CHECK(scope_type IN ('BRANCH','DEPARTMENT')),
+  scope_id INTEGER NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(scope_type, scope_id)
+);
+CREATE TABLE IF NOT EXISTS schedule_overrides (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope_type TEXT NOT NULL CHECK(scope_type IN ('BRANCH','DEPARTMENT')),
+  scope_id INTEGER NOT NULL,
+  override_date TEXT NOT NULL,
+  name TEXT NOT NULL,
+  is_closed INTEGER NOT NULL DEFAULT 0,
+  open_time TEXT,
+  close_time TEXT,
+  counter_count INTEGER,
+  note TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(scope_type, scope_id, override_date)
+);
 CREATE TABLE IF NOT EXISTS slots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   department_id INTEGER NOT NULL REFERENCES departments(id),
@@ -130,12 +174,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_slots_date ON slots(slot_date, department_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_date ON calendar_overrides(override_date, branch_id);
+CREATE INDEX IF NOT EXISTS idx_weekly_scope ON weekly_hours(scope_type, scope_id, weekday);
+CREATE INDEX IF NOT EXISTS idx_schedule_override ON schedule_overrides(scope_type, scope_id, override_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_slot_status ON bookings(slot_id, status);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 SQL);
 
+    ensureColumn($pdo, 'branches', 'building_id', 'INTEGER REFERENCES buildings(id)');
+    if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
+        $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
+    }
+    $defaultBuilding = (int)$pdo->query('SELECT id FROM buildings ORDER BY id LIMIT 1')->fetchColumn();
+    $pdo->prepare('UPDATE branches SET building_id=? WHERE building_id IS NULL')->execute([$defaultBuilding]);
+
     $count = (int)$pdo->query('SELECT COUNT(*) FROM branches')->fetchColumn();
     if ($count === 0) seed($pdo);
+}
+
+function ensureColumn(PDO $pdo, string $table, string $column, string $definition): void
+{
+    $columns = $pdo->query("PRAGMA table_info($table)")->fetchAll();
+    foreach ($columns as $item) if ($item['name'] === $column) return;
+    $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
 }
 
 function seed(PDO $pdo): void
@@ -166,37 +226,68 @@ function seed(PDO $pdo): void
 
 function generateSlots(PDO $pdo, string $date): int
 {
-    $departments = $pdo->query('SELECT d.*, b.open_time, b.close_time, b.closing_buffer_minutes FROM departments d JOIN branches b ON b.id=d.branch_id WHERE d.active=1 AND b.active=1')->fetchAll();
+    $pdo->prepare('DELETE FROM slots WHERE slot_date=? AND booked_count=0')->execute([$date]);
+    $departments = $pdo->query('SELECT d.*,b.open_time branch_open,b.close_time branch_close,b.closing_buffer_minutes,b.building_id,g.is_24_hours building_24,g.open_time building_open,g.close_time building_close FROM departments d JOIN branches b ON b.id=d.branch_id LEFT JOIN buildings g ON g.id=b.building_id WHERE d.active=1 AND b.active=1 AND (g.id IS NULL OR g.active=1)')->fetchAll();
     $created = 0;
     foreach ($departments as $department) {
-        $overrideStmt = $pdo->prepare('SELECT * FROM calendar_overrides WHERE branch_id=? AND override_date=? AND active=1');
-        $overrideStmt->execute([$department['branch_id'], $date]);
-        $override = $overrideStmt->fetch();
-        if ($override && (int)$override['is_closed'] === 1) continue;
         $serviceStmt = $pdo->prepare('SELECT * FROM services WHERE department_id=? AND active=1 ORDER BY id LIMIT 1');
         $serviceStmt->execute([$department['id']]);
         $service = $serviceStmt->fetch();
         if (!$service) continue;
-        $openTime = ($override && $override['open_time']) ? $override['open_time'] : $department['open_time'];
-        $closeTime = ($override && $override['close_time']) ? $override['close_time'] : $department['close_time'];
-        $start = new DateTimeImmutable("$date $openTime", new DateTimeZone('Asia/Bangkok'));
-        $close = new DateTimeImmutable("$date $closeTime", new DateTimeZone('Asia/Bangkok'));
-        $close = $close->modify('-'.(int)$department['closing_buffer_minutes'].' minutes');
-        while ($start->modify('+30 minutes') <= $close) {
-            $end = $start->modify('+30 minutes');
+        [$intervals,$counterOverride] = effectiveIntervals($pdo,$department,$date);
+        $counterCount = $counterOverride ?: (int)$department['counter_count'];
+        foreach ($intervals as [$startMinute,$endMinute]) {
+          for ($minute=$startMinute; $minute+30<=$endMinute; $minute+=30) {
             $effective = max(1, (int)$service['average_minutes'] + (int)$service['preparation_minutes']);
-            $capacity = max(1, (int)floor(30 * (int)$department['counter_count'] * (float)$department['efficiency'] / $effective));
+            $capacity = max(1, (int)floor(30 * $counterCount * (float)$department['efficiency'] / $effective));
             $online = (int)floor($capacity * (int)$department['online_quota_percent'] / 100);
             $walkin = (int)floor($capacity * (int)$department['walkin_quota_percent'] / 100);
             $reserve = max(0, $capacity - $online - $walkin);
             $stmt = $pdo->prepare('INSERT OR IGNORE INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity) VALUES (?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$department['id'],$service['id'],$date,$start->format('H:i'),$end->format('H:i'),$capacity,$online,$walkin,$reserve]);
+            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($minute+30),$capacity,$online,$walkin,$reserve]);
             $created += $stmt->rowCount();
-            $start = $end;
+          }
         }
     }
     return $created;
 }
+
+function effectiveIntervals(PDO $pdo, array $department, string $date): array
+{
+    $weekday=(int)(new DateTimeImmutable($date,new DateTimeZone('Asia/Bangkok')))->format('N');
+    $building=(int)($department['building_24']??0)===1?[[0,1440]]:intervalFromTimes($department['building_open']??'00:00',$department['building_close']??'24:00');
+    $branch=scopeIntervals($pdo,'BRANCH',(int)$department['branch_id'],$date,$weekday,$department['branch_open'],$department['branch_close']);
+    if(!$branch)return [[],null];
+    [$departmentIntervals,$counterOverride,$hasDepartmentRule]=scopeIntervalsWithOverride($pdo,'DEPARTMENT',(int)$department['id'],$date,$weekday);
+    if($hasDepartmentRule&& !$departmentIntervals)return [[],null];
+    $result=intersectIntervals($building,$branch);
+    if($hasDepartmentRule)$result=intersectIntervals($result,$departmentIntervals);
+    if($result){$last=count($result)-1;$result[$last][1]=max($result[$last][0],$result[$last][1]-(int)$department['closing_buffer_minutes']);}
+    return [array_values(array_filter($result,fn($i)=>$i[1]>$i[0])),$counterOverride];
+}
+
+function scopeIntervals(PDO $pdo,string $type,int $id,string $date,int $weekday,string $fallbackOpen,string $fallbackClose): array
+{
+    [$intervals,,$hasRule]=scopeIntervalsWithOverride($pdo,$type,$id,$date,$weekday);
+    return $hasRule?$intervals:intervalFromTimes($fallbackOpen,$fallbackClose);
+}
+
+function scopeIntervalsWithOverride(PDO $pdo,string $type,int $id,string $date,int $weekday): array
+{
+    $stmt=$pdo->prepare('SELECT * FROM schedule_overrides WHERE scope_type=? AND scope_id=? AND override_date=? AND active=1');$stmt->execute([$type,$id,$date]);$override=$stmt->fetch();
+    if($override){if((int)$override['is_closed']===1)return [[],isset($override['counter_count'])?(int)$override['counter_count']:null,true];return [intervalFromTimes($override['open_time'],$override['close_time']),isset($override['counter_count'])?(int)$override['counter_count']:null,true];}
+    $stmt=$pdo->prepare('SELECT open_time,close_time FROM weekly_hours WHERE scope_type=? AND scope_id=? AND weekday=? AND active=1 ORDER BY interval_order');$stmt->execute([$type,$id,$weekday]);$rows=$stmt->fetchAll();
+    if(!$rows){$configured=$pdo->prepare('SELECT 1 FROM weekly_schedule_config WHERE scope_type=? AND scope_id=?');$configured->execute([$type,$id]);return [[],null,(bool)$configured->fetchColumn()];}
+    return [array_map(fn($r)=>[timeToMinutes($r['open_time']),timeToMinutes($r['close_time'])],$rows),null,true];
+}
+
+function intervalFromTimes(?string $open,?string $close): array
+{
+    if(!$open||!$close)return [];$start=timeToMinutes($open);$end=timeToMinutes($close);return $end>$start?[[$start,$end]]:[];
+}
+function timeToMinutes(string $time): int { if($time==='24:00')return 1440;[$h,$m]=array_map('intval',explode(':',$time));return $h*60+$m; }
+function minutesToTime(int $minutes): string { if($minutes>=1440)return '24:00';return sprintf('%02d:%02d',intdiv($minutes,60),$minutes%60); }
+function intersectIntervals(array $left,array $right): array { $out=[];foreach($left as $a)foreach($right as $b){$start=max($a[0],$b[0]);$end=min($a[1],$b[1]);if($end>$start)$out[]=[$start,$end];}return $out; }
 
 function jsonInput(): array
 {
