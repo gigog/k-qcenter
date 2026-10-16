@@ -62,7 +62,7 @@ function switchView(view){
  document.getElementById('sidebar').classList.remove('open');
 }
 
-document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>switchView(n.dataset.view));
+document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.onclick=()=>switchView(n.dataset.view));
 document.querySelectorAll('[data-jump]').forEach(n=>n.onclick=()=>switchView(n.dataset.jump));
 document.getElementById('menuButton').onclick=()=>document.getElementById('sidebar').classList.toggle('open');
 
