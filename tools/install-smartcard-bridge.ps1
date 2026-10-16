@@ -2,6 +2,8 @@ $ErrorActionPreference = 'Stop'
 $source = Join-Path $PSScriptRoot 'smartcard-bridge.ps1'
 $targetDir = Join-Path $env:LOCALAPPDATA 'K-QCENTER\SmartCardBridge'
 $target = Join-Path $targetDir 'smartcard-bridge.ps1'
+$launcherSource = Join-Path $PSScriptRoot 'smartcard-bridge-launcher.ps1'
+$launcherTarget = Join-Path $targetDir 'smartcard-bridge-launcher.ps1'
 $watchdogSource = Join-Path $PSScriptRoot 'smartcard-watchdog.ps1'
 $watchdogTarget = Join-Path $targetDir 'smartcard-watchdog.ps1'
 $hiddenSource = Join-Path $PSScriptRoot 'smartcard-bridge-hidden.vbs'
@@ -10,6 +12,7 @@ $watchdogHiddenSource = Join-Path $PSScriptRoot 'smartcard-watchdog-hidden.vbs'
 $watchdogHiddenTarget = Join-Path $targetDir 'smartcard-watchdog-hidden.vbs'
 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 Copy-Item -LiteralPath $source -Destination $target -Force
+Copy-Item -LiteralPath $launcherSource -Destination $launcherTarget -Force
 Copy-Item -LiteralPath $watchdogSource -Destination $watchdogTarget -Force
 Copy-Item -LiteralPath $hiddenSource -Destination $hiddenTarget -Force
 Copy-Item -LiteralPath $watchdogHiddenSource -Destination $watchdogHiddenTarget -Force

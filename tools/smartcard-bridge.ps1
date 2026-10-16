@@ -105,6 +105,26 @@ try {
             $stream = $client.GetStream(); $reader = [IO.StreamReader]::new($stream,[Text.Encoding]::ASCII,$false,4096,$true)
             $requestLine = $reader.ReadLine(); $headers = @{}
             while (($line = $reader.ReadLine()) -ne '') { $pair=$line.Split(':',2); if($pair.Count -eq 2){$headers[$pair[0].Trim().ToLowerInvariant()]=$pair[1].Trim()} }
+            [int]$contentLength = 0
+            if ($headers.ContainsKey('content-length')) {
+                if (-not [int]::TryParse([string]$headers['content-length'], [ref]$contentLength) -or $contentLength -lt 0 -or $contentLength -gt 4096) {
+                    Write-HttpResponse $stream 400 '{"ok":false,"error":"Request body ไม่ถูกต้องหรือมีขนาดใหญ่เกินไป"}' 'null'
+                    continue
+                }
+            }
+            if ($contentLength -gt 0) {
+                $bodyBuffer = New-Object char[] $contentLength
+                $bodyRead = 0
+                while ($bodyRead -lt $contentLength) {
+                    $readCount = $reader.Read($bodyBuffer, $bodyRead, $contentLength - $bodyRead)
+                    if ($readCount -le 0) { break }
+                    $bodyRead += $readCount
+                }
+                if ($bodyRead -ne $contentLength) {
+                    Write-HttpResponse $stream 400 '{"ok":false,"error":"Request body ไม่สมบูรณ์"}' 'null'
+                    continue
+                }
+            }
             $origin = [string]$headers['origin']
             if ($origin -notin $AllowedOrigins) { Write-HttpResponse $stream 403 '{"ok":false,"error":"Origin ไม่ได้รับอนุญาต"}' 'null'; continue }
             if ($requestLine -match '^OPTIONS /(read|health|restart) ') { Write-HttpResponse $stream 204 '' $origin; continue }
