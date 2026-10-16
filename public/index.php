@@ -38,6 +38,7 @@ $routes = [
     '/thai-date.js' => ['dist/thai-date.js', 'text/javascript; charset=utf-8'],
     '/qrcode.js' => ['dist/qrcode.js', 'text/javascript; charset=utf-8'],
     '/public-queue.css' => ['dist/public-queue.css', 'text/css; charset=utf-8'],
+    '/online-shell.css' => ['dist/online-shell.css', 'text/css; charset=utf-8'],
     '/ticket.css' => ['dist/ticket.css', 'text/css; charset=utf-8'],
     '/manifest.webmanifest' => ['dist/manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
     '/sw.js' => ['dist/sw.js', 'text/javascript; charset=utf-8'],
