@@ -195,15 +195,49 @@ try {
             $stmt=$pdo->prepare('SELECT * FROM slots WHERE id=? AND active=1'); $stmt->execute([(int)$in['slot_id']]); $slot=$stmt->fetch();
             if(!$slot) throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');
             if((int)$slot['booked_count'] >= (int)$slot['capacity']) throw new DomainException('Slot นี้เต็มแล้ว');
-            $publicId=bin2hex(random_bytes(16));
+            $source=strtoupper(trim((string)($in['source']??'ONLINE')));if($source!=='ONLINE')throw new DomainException('ช่องทางการจองไม่ถูกต้อง');
+            $used=$pdo->prepare("SELECT COUNT(*) FROM bookings WHERE slot_id=? AND source='ONLINE' AND status NOT IN ('CANCELLED','EXPIRED')");$used->execute([$slot['id']]);if((int)$used->fetchColumn()>=(int)$slot['online_capacity'])throw new DomainException('โควตาจองออนไลน์ของ Slot นี้เต็มแล้ว');
+            $publicId=newPublicId();
             $reference='KQ-'.date('ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)),0,6));
             $stmt=$pdo->prepare('INSERT INTO bookings(public_id,reference_no,slot_id,customer_name,customer_phone,source,status,idempotency_key) VALUES (?,?,?,?,?,?,?,?)');
-            $stmt->execute([$publicId,$reference,(int)$in['slot_id'],trim((string)$in['customer_name']),trim((string)$in['customer_phone']),$in['source']??'ONLINE','CONFIRMED',$idempotency]);
+            $stmt->execute([$publicId,$reference,(int)$in['slot_id'],trim((string)$in['customer_name']),trim((string)$in['customer_phone']),$source,'CONFIRMED',$idempotency]);
             $bookingId=(int)$pdo->lastInsertId();
             $pdo->prepare('UPDATE slots SET booked_count=booked_count+1 WHERE id=?')->execute([(int)$in['slot_id']]);
             $pdo->exec('COMMIT'); audit(null,'CREATE_BOOKING','booking',(string)$bookingId,['reference'=>$reference]);
             respond(['ok'=>true,'booking'=>['id'=>$bookingId,'public_id'=>$publicId,'reference_no'=>$reference,'status'=>'CONFIRMED']],201);
         } catch(Throwable $e) { try { $pdo->exec('ROLLBACK'); } catch (Throwable) {} if($e instanceof DomainException) fail($e->getMessage(),409); throw $e; }
+    }
+
+    if ($action === 'queue-status') {
+        $publicId=trim((string)($_GET['token']??''));
+        if(!preg_match('/^[a-f0-9]{32}$/',$publicId))fail('QR หรือรหัสติดตามไม่ถูกต้อง',404);
+        $stmt=$pdo->prepare("SELECT q.*,b.public_id booking_public_id,b.reference_no,b.customer_name,b.status booking_status,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name,br.name branch_name FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE q.public_id=? OR b.public_id=? LIMIT 1");
+        $stmt->execute([$publicId,$publicId]);$row=$stmt->fetch();
+        if(!$row){
+            $stmt=$pdo->prepare("SELECT b.public_id booking_public_id,b.reference_no,b.customer_name,b.status booking_status,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name,br.name branch_name FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE b.public_id=? LIMIT 1");$stmt->execute([$publicId]);$booking=$stmt->fetch();
+            if(!$booking)fail('ไม่พบคิว หรือ QR หมดอายุแล้ว',404);
+            respond(['ok'=>true,'data'=>['token'=>$booking['booking_public_id'],'reference_no'=>$booking['reference_no'],'queue_no'=>null,'customer_display'=>maskThaiName($booking['customer_name']),'status'=>$booking['booking_status'],'current_step'=>'BOOKED','branch_name'=>$booking['branch_name'],'department_name'=>$booking['department_name'],'service_name'=>$booking['service_name'],'slot_date'=>$booking['slot_date'],'start_time'=>$booking['start_time'],'end_time'=>$booking['end_time'],'estimated_wait_minutes'=>null,'events'=>[['event_type'=>'BOOKED','status'=>'CONFIRMED','step'=>'BOOKED','note'=>'ยืนยันการจองแล้ว รอเช็กอิน','created_at'=>null]]]]);
+        }
+        $events=$pdo->prepare('SELECT event_type,status,step,note,created_at FROM queue_events WHERE queue_ticket_id=? ORDER BY id');$events->execute([$row['id']]);
+        respond(['ok'=>true,'data'=>['token'=>$row['public_id'],'reference_no'=>$row['reference_no'],'queue_no'=>$row['queue_no'],'customer_display'=>maskThaiName($row['customer_name']),'status'=>$row['status'],'current_step'=>$row['current_step'],'branch_name'=>$row['branch_name'],'department_name'=>$row['department_name'],'service_name'=>$row['service_name'],'slot_date'=>$row['slot_date'],'start_time'=>$row['start_time'],'end_time'=>$row['end_time'],'estimated_wait_minutes'=>$row['estimated_wait_minutes'],'checked_in_at'=>$row['checked_in_at'],'registration_started_at'=>$row['registration_started_at'],'visit_opened_at'=>$row['visit_opened_at'],'service_started_at'=>$row['service_started_at'],'service_completed_at'=>$row['service_completed_at'],'events'=>$events->fetchAll()]]);
+    }
+
+    if ($action === 'kiosk-check-in') {
+        requireMethod('POST');$in=jsonInput();$token=trim((string)($in['token']??''));
+        if(!preg_match('/^[a-f0-9]{32}$/',$token))fail('QR หรือรหัสยืนยันไม่ถูกต้อง');
+        $pdo->exec('BEGIN IMMEDIATE');
+        try{$stmt=$pdo->prepare('SELECT * FROM bookings WHERE public_id=?');$stmt->execute([$token]);$booking=$stmt->fetch();if(!$booking)throw new DomainException('ไม่พบรายการจอง');if(in_array($booking['status'],['CANCELLED','EXPIRED'],true))throw new DomainException('รายการจองนี้ไม่สามารถเช็กอินได้');$ticket=createQueueTicket($pdo,$booking);$pdo->exec('COMMIT');audit(null,'KIOSK_CHECK_IN','queue_ticket',(string)$ticket['id'],['queue_no'=>$ticket['queue_no']]);respond(['ok'=>true,'ticket'=>$ticket]);}catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
+    }
+
+    if ($action === 'kiosk-walk-in') {
+        requireMethod('POST');$in=jsonInput();foreach(['slot_id','customer_name'] as $field)if(empty($in[$field]))fail("กรุณาระบุ $field");
+        $pdo->exec('BEGIN IMMEDIATE');
+        try{$stmt=$pdo->prepare('SELECT * FROM slots WHERE id=? AND active=1');$stmt->execute([(int)$in['slot_id']]);$slot=$stmt->fetch();if(!$slot)throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');$used=$pdo->prepare("SELECT COUNT(*) FROM bookings WHERE slot_id=? AND source='WALK_IN' AND status NOT IN ('CANCELLED','EXPIRED')");$used->execute([$slot['id']]);if((int)$used->fetchColumn()>=(int)$slot['walkin_capacity']+(int)$slot['reserve_capacity'])throw new DomainException('โควตา Walk-in ของ Slot นี้เต็มแล้ว');if((int)$slot['booked_count']>=(int)$slot['capacity'])throw new DomainException('Slot นี้เต็มแล้ว');$publicId=newPublicId();$reference='KQ-'.date('ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)),0,6));$stmt=$pdo->prepare("INSERT INTO bookings(public_id,reference_no,slot_id,customer_name,customer_phone,source,status) VALUES (?,?,?,?,?,'WALK_IN','CONFIRMED')");$stmt->execute([$publicId,$reference,$slot['id'],trim((string)$in['customer_name']),trim((string)($in['customer_phone']??''))]);$bookingId=(int)$pdo->lastInsertId();$pdo->prepare('UPDATE slots SET booked_count=booked_count+1 WHERE id=?')->execute([$slot['id']]);$stmt=$pdo->prepare('SELECT * FROM bookings WHERE id=?');$stmt->execute([$bookingId]);$ticket=createQueueTicket($pdo,$stmt->fetch());$pdo->exec('COMMIT');audit(null,'CREATE_WALK_IN','queue_ticket',(string)$ticket['id'],['queue_no'=>$ticket['queue_no']]);respond(['ok'=>true,'ticket'=>$ticket,'booking_public_id'=>$publicId],201);}catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
+    }
+
+    if ($action === 'public-slots') {
+        $date=$_GET['date']??date('Y-m-d');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))fail('วันที่ไม่ถูกต้อง');generateSlots($pdo,$date);
+        $stmt=$pdo->prepare("SELECT s.id,s.slot_date,s.start_time,s.end_time,s.capacity,s.booked_count,s.online_capacity,s.walkin_capacity,s.reserve_capacity,d.name department_name,sv.name service_name,b.name branch_name FROM slots s JOIN departments d ON d.id=s.department_id JOIN branches b ON b.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE s.slot_date=? AND s.active=1 AND s.booked_count<s.capacity ORDER BY s.start_time,d.id");$stmt->execute([$date]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]);
     }
 
     if ($action === 'audit') {

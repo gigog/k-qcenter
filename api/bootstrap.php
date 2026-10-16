@@ -162,6 +162,33 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS queue_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id TEXT NOT NULL UNIQUE,
+  booking_id INTEGER UNIQUE REFERENCES bookings(id),
+  queue_no TEXT NOT NULL,
+  source TEXT NOT NULL CHECK(source IN ('ONLINE','WALK_IN')),
+  status TEXT NOT NULL DEFAULT 'WAITING',
+  current_step TEXT NOT NULL DEFAULT 'REGISTRATION_WAITING',
+  checked_in_at TEXT NOT NULL,
+  first_called_at TEXT,
+  registration_started_at TEXT,
+  visit_opened_at TEXT,
+  service_started_at TEXT,
+  service_completed_at TEXT,
+  estimated_wait_minutes INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS queue_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  queue_ticket_id INTEGER NOT NULL REFERENCES queue_tickets(id),
+  event_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  step TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER REFERENCES users(id),
@@ -177,6 +204,8 @@ CREATE INDEX IF NOT EXISTS idx_calendar_date ON calendar_overrides(override_date
 CREATE INDEX IF NOT EXISTS idx_weekly_scope ON weekly_hours(scope_type, scope_id, weekday);
 CREATE INDEX IF NOT EXISTS idx_schedule_override ON schedule_overrides(scope_type, scope_id, override_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_slot_status ON bookings(slot_id, status);
+CREATE INDEX IF NOT EXISTS idx_queue_status ON queue_tickets(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_queue_events_ticket ON queue_events(queue_ticket_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 SQL);
 
@@ -375,5 +404,38 @@ function audit(?int $userId, string $action, string $entityType, ?string $entity
 {
     $stmt = db()->prepare('INSERT INTO audit_logs(user_id,action,entity_type,entity_id,detail,ip_address) VALUES (?,?,?,?,?,?)');
     $stmt->execute([$userId,$action,$entityType,$entityId,$detail ? json_encode($detail, JSON_UNESCAPED_UNICODE) : null,$_SERVER['REMOTE_ADDR'] ?? null]);
+}
+
+function newPublicId(): string { return bin2hex(random_bytes(16)); }
+
+function nextQueueNo(PDO $pdo, int $departmentId, string $slotDate): string
+{
+    $prefix = chr(65 + (($departmentId - 1) % 26));
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND s.slot_date=?');
+    $stmt->execute([$departmentId,$slotDate]);
+    return sprintf('%s-%03d',$prefix,(int)$stmt->fetchColumn()+1);
+}
+
+function createQueueTicket(PDO $pdo, array $booking): array
+{
+    $existing=$pdo->prepare('SELECT * FROM queue_tickets WHERE booking_id=?');$existing->execute([$booking['id']]);
+    if($ticket=$existing->fetch())return $ticket;
+    $slot=$pdo->prepare('SELECT department_id,slot_date FROM slots WHERE id=?');$slot->execute([$booking['slot_id']]);$slotRow=$slot->fetch();$departmentId=(int)($slotRow['department_id']??0);
+    if($departmentId<1)throw new DomainException('ไม่พบแผนกของรายการนี้');
+    $publicId=newPublicId();$queueNo=nextQueueNo($pdo,$departmentId,(string)$slotRow['slot_date']);
+    $waiting=$pdo->prepare("SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND q.status IN ('WAITING','CALLED')");$waiting->execute([$departmentId]);
+    $estimated=(int)$waiting->fetchColumn()*10;
+    $stmt=$pdo->prepare("INSERT INTO queue_tickets(public_id,booking_id,queue_no,source,status,current_step,checked_in_at,estimated_wait_minutes) VALUES (?,?,?,?,?,?,datetime('now'),?)");
+    $stmt->execute([$publicId,$booking['id'],$queueNo,$booking['source'],'WAITING','REGISTRATION_WAITING',$estimated]);
+    $id=(int)$pdo->lastInsertId();
+    $pdo->prepare("INSERT INTO queue_events(queue_ticket_id,event_type,status,step,note) VALUES (?,?,?,?,?)")->execute([$id,'CHECKED_IN','WAITING','REGISTRATION_WAITING','ยืนยันการมาถึงและเข้าคิวแล้ว']);
+    $pdo->prepare("UPDATE bookings SET status='CHECKED_IN',updated_at=CURRENT_TIMESTAMP WHERE id=?")->execute([$booking['id']]);
+    $stmt=$pdo->prepare('SELECT * FROM queue_tickets WHERE id=?');$stmt->execute([$id]);return $stmt->fetch();
+}
+
+function maskThaiName(string $name): string
+{
+    $parts=preg_split('/\s+/u',trim($name))?:[];
+    return implode(' ',array_map(function($part){$length=mb_strlen($part);return $length<2?'*':mb_substr($part,0,1).str_repeat('•',min(5,$length-1));},$parts));
 }
 

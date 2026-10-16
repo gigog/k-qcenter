@@ -1,0 +1,2 @@
+.ticket-qr{display:block;width:210px;height:210px;image-rendering:pixelated;margin:14px auto}
+@media print{body{background:#fff}.public-head,.no-print{display:none!important}.public-main{width:80mm;margin:0}.card{box-shadow:none;border:0;padding:0}.ticket{border:0}.ticket-qr{width:45mm;height:45mm}}

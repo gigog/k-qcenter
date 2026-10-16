@@ -17,6 +17,12 @@ http://localhost/k-qcenter/
 
 ระบบต้องเปิดผ่าน Apache/PHP ไม่ควรเปิด `dist/index.html` โดยตรง เพราะหน้า Admin ใช้ Session และ API ฝั่งเซิร์ฟเวอร์
 
+หน้าทดลองสำหรับผู้รับบริการ:
+
+- K-QOnline: `http://localhost/k-qcenter/dist/online.html`
+- Kiosk: `http://localhost/k-qcenter/dist/kiosk.html`
+- ตรวจสอบสถานะคิว: `http://localhost/k-qcenter/dist/status.html`
+
 เมื่อเปิดครั้งแรก ระบบจะสร้างฐานข้อมูล SQLite และแสดงหน้าสร้างบัญชีผู้ดูแล ให้ใช้รหัสผ่านอย่างน้อย 10 ตัวอักษร จากนั้นข้อมูลสาขา แผนก บริการ Slot การจอง และ Audit log จะถูกบันทึกใน `data/kqcenter.sqlite`
 
 โฟลเดอร์ที่ใช้ให้บริการหน้าเว็บคือ `dist/` และสามารถนำพอร์ตของ Apache ออก HTTPS ผ่าน Tailscale Serve สำหรับหลังบ้านได้

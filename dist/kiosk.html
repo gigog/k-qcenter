@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Kiosk ออกบัตรและตรวจสอบคิว K-QCENTER"><title>K-QCENTER Kiosk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="public-queue.css"><link rel="stylesheet" href="ticket.css">
+</head>
+<body><div class="public-shell">
+  <header class="public-head"><div class="public-brand"><b>KQ</b><div><strong>K-QCENTER KIOSK</strong><span>รับบัตรคิวและตรวจสอบสถานะ</span></div></div><span>ระบบบริการอัตโนมัติ</span></header>
+  <main class="public-main">
+    <section id="homePanel" class="kiosk-home"><button class="choice" data-open="scanPanel"><span class="choice-icon">⌗</span><h2>สแกน QR</h2><p>เช็กอินรายการจอง หรือตรวจสอบสถานะคิว</p></button><button class="choice" data-open="walkinPanel"><span class="choice-icon">Q</span><h2>รับคิว Walk-in</h2><p>เลือกบริการที่เปิดรับและออกบัตรคิว</p></button></section>
+    <section id="scanPanel" class="card hidden"><div class="panel-title"><button class="back" data-home>←</button><div><span class="eyebrow">SCAN OR ENTER CODE</span><h1>สแกน QR หรือกรอกรหัส</h1></div></div><div id="camera" class="camera"><button id="cameraButton" class="primary">เปิดกล้องสแกน QR</button><video id="video" class="hidden" playsinline></video></div><div class="or">หรือใช้เครื่องสแกน/กรอกรหัสด้านล่าง</div><form id="scanForm"><label class="field">รหัสจาก QR<input id="scanToken" autocomplete="off" placeholder="รหัส 32 ตัวอักษร" required></label><div class="actions"><button class="primary" name="mode" value="status">ดูสถานะ</button><button class="secondary" name="mode" value="checkin">ยืนยันเช็กอิน</button></div></form><div id="scanError" class="error hidden"></div></section>
+    <section id="walkinPanel" class="card hidden"><div class="panel-title"><button class="back" data-home>←</button><div><span class="eyebrow">WALK-IN</span><h1>รับบัตรคิว</h1></div></div><form id="walkinForm"><label class="field">บริการที่เปิดรับ<select id="slotSelect" required></select></label><label class="field">ชื่อผู้รับบริการ<input id="walkinName" autocomplete="name" required></label><label class="field">เบอร์โทรศัพท์ (ไม่บังคับ)<input id="walkinPhone" inputmode="tel" autocomplete="tel"></label><button class="primary wide">ยืนยันและรับบัตรคิว</button></form><div id="walkinError" class="error hidden"></div></section>
+    <section id="ticketPanel" class="card hidden"><div class="ticket"><span class="eyebrow">QUEUE TICKET</span><h1>รับคิวเรียบร้อยแล้ว</h1><div class="queue-number"><span>หมายเลขคิว</span><strong id="ticketNo">—</strong></div><img id="ticketQr" class="ticket-qr" alt="QR สำหรับติดตามสถานะคิว"><p id="ticketWait"></p><p class="muted">สแกน QR ด้วยมือถือเพื่อติดตามสถานะ หรือกรอกรหัสนี้ที่ Kiosk</p><a id="statusLink" href="#">ดูสถานะคิวบนมือถือ</a><p><code id="ticketToken"></code></p></div><div class="actions no-print"><button class="primary" id="printButton">พิมพ์บัตรคิว</button><button class="secondary" id="finishButton">เสร็จสิ้น</button></div></section>
+  </main>
+</div><script src="qrcode.js"></script><script src="kiosk.js"></script></body>
+</html>
