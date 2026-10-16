@@ -27,8 +27,11 @@ let setupMode = false;
 function setAuthMode(setup) {
   setupMode = setup;
   document.querySelectorAll('.setup-only').forEach(node => node.classList.toggle('hidden', !setup));
+  document.getElementById('authEyebrow').classList.toggle('hidden', !setup);
+  document.getElementById('authTitle').classList.toggle('hidden', !setup);
+  document.getElementById('authDescription').classList.toggle('hidden', !setup);
   document.getElementById('authEyebrow').textContent = setup ? 'ตั้งค่าครั้งแรก' : 'เข้าสู่ระบบ';
-  document.getElementById('authTitle').textContent = setup ? 'สร้างผู้ดูแลระบบ' : 'ยินดีต้อนรับกลับ';
+  document.getElementById('authTitle').textContent = setup ? 'สร้างผู้ดูแลระบบ' : 'เข้าสู่ระบบ';
   document.getElementById('authDescription').textContent = setup
     ? 'ระบบยังไม่มีบัญชีผู้ดูแล กรุณาสร้างบัญชีแรก'
     : 'กรอกบัญชีผู้ดูแลเพื่อเข้าสู่ระบบหลังบ้าน';
@@ -97,12 +100,54 @@ function finishAuth(user) {
   authGate.classList.add('hidden');
   const profileName = document.querySelector('.profile strong');
   if (profileName) profileName.textContent = user.display_name;
+  const profileAvatar = document.querySelector('.profile .avatar');
+  if (profileAvatar) profileAvatar.textContent = Array.from(user.display_name.replace(/\s+/g, '')).slice(0, 2).join('');
   const roleMenus={admin:null,kiosk_admin:['dashboard','branches','services','kiosks'],kiosk_manager:['dashboard'],counter:['dashboard','queues','capacity'],viewer:['dashboard','queues','capacity','branches','services']};
   const allowed=Object.prototype.hasOwnProperty.call(roleMenus,user.role)?roleMenus[user.role]:['dashboard'];
   document.querySelectorAll('.nav-item[data-view]').forEach(node=>node.classList.toggle('hidden',Array.isArray(allowed)&&!allowed.includes(node.dataset.view)));
-  const profileRole=document.querySelector('.profile span');if(profileRole)profileRole.textContent=({admin:'ผู้ดูแลระบบ',kiosk_admin:'ผู้ดูแล Kiosk',kiosk_manager:'ผู้ควบคุม Kiosk',counter:'เจ้าหน้าที่เคาน์เตอร์',viewer:'ผู้ดูรายงาน'}[user.role]||user.role);
+  const profileRole=document.querySelector('.profile-copy span');if(profileRole)profileRole.textContent=({admin:'ผู้ดูแลระบบ',kiosk_admin:'ผู้ดูแล Kiosk',kiosk_manager:'ผู้ควบคุม Kiosk',counter:'เจ้าหน้าที่เคาน์เตอร์',viewer:'ผู้ดูรายงาน'}[user.role]||user.role);
   loadDashboard();
 }
+
+const profileMenuButton = document.getElementById('profileMenuButton');
+const profileMenu = document.getElementById('profileMenu');
+
+function closeProfileMenu() {
+  profileMenu.classList.add('hidden');
+  profileMenuButton.setAttribute('aria-expanded', 'false');
+}
+
+profileMenuButton.addEventListener('click', event => {
+  event.stopPropagation();
+  const willOpen = profileMenu.classList.contains('hidden');
+  profileMenu.classList.toggle('hidden', !willOpen);
+  profileMenuButton.setAttribute('aria-expanded', String(willOpen));
+});
+
+document.addEventListener('click', closeProfileMenu);
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeProfileMenu();
+});
+
+document.getElementById('logoutButton').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = 'กำลังออกจากระบบ…';
+  try {
+    await kqApi('logout', { method: 'POST', body: '{}' });
+    csrfToken = '';
+    authForm.reset();
+    setAuthMode(false);
+    closeProfileMenu();
+    authGate.classList.remove('hidden');
+    document.getElementById('authUsername').focus();
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = '<span aria-hidden="true">↪</span> ออกจากระบบ';
+  }
+});
 
 authForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -126,6 +171,14 @@ authForm.addEventListener('submit', async event => {
     errorBox.textContent = error.message;
     errorBox.classList.remove('hidden');
   }
+});
+
+document.getElementById('passwordToggle').addEventListener('click', event => {
+  const password = document.getElementById('authPassword');
+  const reveal = password.type === 'password';
+  password.type = reveal ? 'text' : 'password';
+  event.currentTarget.setAttribute('aria-pressed', String(reveal));
+  event.currentTarget.setAttribute('aria-label', reveal ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน');
 });
 
 document.querySelectorAll('.nav-item').forEach(node => {

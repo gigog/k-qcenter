@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="admin-kiosk.css">
   <link rel="stylesheet" href="admin-users.css">
   <link rel="stylesheet" href="schedule.css">
+  <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
   <div class="app-shell">
@@ -61,10 +62,15 @@
         <div class="top-actions">
           <button class="admin-install" id="installAdminApp" type="button">ติดตั้ง K-QCENTER</button>
           <button class="icon-button notification" aria-label="การแจ้งเตือน">♢<b>3</b></button>
-          <div class="profile">
-            <div class="avatar">กส</div>
-            <div><strong>กิตติศักดิ์ สมบูรณ์</strong><span>ผู้ดูแลระบบ</span></div>
-            <span class="chevron">⌄</span>
+          <div class="profile-menu-wrap">
+            <button class="profile" id="profileMenuButton" type="button" aria-expanded="false" aria-controls="profileMenu">
+              <span class="avatar">กส</span>
+              <span class="profile-copy"><strong>กิตติศักดิ์ สมบูรณ์</strong><span>ผู้ดูแลระบบ</span></span>
+              <span class="chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="profile-menu hidden" id="profileMenu">
+              <button id="logoutButton" type="button"><span aria-hidden="true">↪</span> ออกจากระบบ</button>
+            </div>
           </div>
         </div>
       </header>
@@ -134,18 +140,32 @@
     </div>
   </div>
   <div class="auth-gate" id="authGate">
-    <form class="auth-card" id="authForm">
-      <div class="auth-brand"><div class="brand-mark">KQ</div><div><strong>K-QCENTER</strong><span>ระบบบริหารจัดการคิว</span></div></div>
-      <span class="eyebrow" id="authEyebrow">เข้าสู่ระบบ</span>
-      <h2 id="authTitle">ยินดีต้อนรับกลับ</h2>
-      <p id="authDescription">กรอกบัญชีผู้ดูแลเพื่อเข้าสู่ระบบหลังบ้าน</p>
-      <label class="setup-only hidden">ชื่อผู้ดูแล<input id="displayName" autocomplete="name"></label>
-      <label>ชื่อผู้ใช้<input id="authUsername" autocomplete="username" required minlength="3"></label>
-      <label>รหัสผ่าน<input id="authPassword" type="password" autocomplete="current-password" required minlength="10"></label>
-      <div class="auth-error hidden" id="authError"></div>
-      <button class="primary" id="authSubmit" type="submit">เข้าสู่ระบบ</button>
-      <small>การเชื่อมต่อถูกป้องกันด้วย Session และ HttpOnly cookie</small>
-    </form>
+    <div class="auth-shell">
+      <form class="auth-card" id="authForm">
+        <div class="auth-logo" aria-hidden="true"><img src="icons/admin-icon.svg" alt=""></div>
+        <div class="auth-brand"><strong>K-QCENTER</strong><span>ระบบบริหารจัดการคิวส่วนกลาง</span></div>
+        <span class="auth-mode hidden" id="authEyebrow">เข้าสู่ระบบ</span>
+        <h2 class="hidden" id="authTitle">เข้าสู่ระบบ</h2>
+        <p class="hidden" id="authDescription">กรอกบัญชีผู้ดูแลเพื่อเข้าสู่ระบบหลังบ้าน</p>
+        <label class="auth-field setup-only hidden">
+          <span class="field-label">ชื่อผู้ดูแล</span><span class="field-icon" aria-hidden="true">●</span>
+          <input id="displayName" autocomplete="name" placeholder="ชื่อผู้ดูแลระบบ">
+        </label>
+        <label class="auth-field">
+          <span class="field-label">ชื่อผู้ใช้</span><span class="field-icon" aria-hidden="true">●</span>
+          <input id="authUsername" autocomplete="username" placeholder="ชื่อผู้ใช้" required minlength="3">
+        </label>
+        <label class="auth-field">
+          <span class="field-label">รหัสผ่าน</span><span class="field-icon lock-icon" aria-hidden="true">▣</span>
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="รหัสผ่าน" required minlength="10">
+          <button class="password-toggle" id="passwordToggle" type="button" aria-label="แสดงรหัสผ่าน" aria-pressed="false">◉</button>
+        </label>
+        <div class="auth-error hidden" id="authError"></div>
+        <button class="primary auth-submit" id="authSubmit" type="submit">เข้าสู่ระบบ</button>
+        <div class="auth-security"><span aria-hidden="true">♢</span> เชื่อมต่อ K-QCENTER อย่างปลอดภัย</div>
+      </form>
+      <p class="auth-footer">พัฒนาโดยทีม K-QCENTER · ระบบบริหารจัดการคิว</p>
+    </div>
   </div>
   <div class="modal-backdrop hidden" id="modalBackdrop">
     <form class="modal" id="slotForm">

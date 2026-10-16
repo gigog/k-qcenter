@@ -1,0 +1,177 @@
+:root {
+  --sidebar-fluid: clamp(228px, 13.2vw, 292px);
+  --page-fluid-gap: clamp(18px, 1.8vw, 38px);
+}
+
+.sidebar {
+  width: var(--sidebar-fluid);
+  padding: clamp(20px, 1.3vw, 30px) clamp(14px, 1vw, 20px) 18px;
+}
+
+.main {
+  width: calc(100% - var(--sidebar-fluid));
+  margin-left: var(--sidebar-fluid);
+}
+
+.topbar {
+  height: clamp(76px, 5vw, 96px);
+  padding-inline: var(--page-fluid-gap);
+}
+
+.profile-menu-wrap {
+  position: relative;
+}
+
+.profile {
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profile:hover,
+.profile:focus-visible,
+.profile[aria-expanded="true"] {
+  background: #f3f7fc;
+  border-radius: 12px;
+  outline: none;
+}
+
+.profile-copy {
+  display: block;
+}
+
+.profile-copy > span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.profile-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  width: 176px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(28, 48, 76, .16);
+}
+
+.profile-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: transparent;
+  color: #b23c49;
+  font-weight: 600;
+  text-align: left;
+}
+
+.profile-menu button:hover,
+.profile-menu button:focus-visible {
+  background: #fff0f1;
+  outline: none;
+}
+
+.content {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(20px, 1.6vw, 36px) var(--page-fluid-gap) clamp(32px, 2.4vw, 54px);
+}
+
+.metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(12px, 1vw, 22px);
+  margin-block: clamp(16px, 1.2vw, 25px);
+}
+
+.dashboard-grid {
+  gap: clamp(14px, 1.1vw, 24px);
+  margin-bottom: clamp(14px, 1.1vw, 24px);
+}
+
+.chart {
+  height: clamp(205px, 13vw, 300px);
+}
+
+.auth-shell {
+  width: min(clamp(390px, 24vw, 540px), 100%);
+}
+
+.auth-card {
+  border-radius: clamp(28px, 1.8vw, 38px);
+  padding: clamp(32px, 2.1vw, 46px);
+}
+
+.auth-logo {
+  width: clamp(92px, 6vw, 124px);
+  height: clamp(92px, 6vw, 124px);
+  margin-bottom: clamp(18px, 1.2vw, 26px);
+}
+
+.auth-logo img {
+  width: clamp(70px, 4.7vw, 96px);
+  height: clamp(70px, 4.7vw, 96px);
+}
+
+.auth-brand strong {
+  font-size: clamp(27px, 1.65vw, 36px);
+}
+
+@media (min-width: 1800px) {
+  .nav-item {
+    padding: clamp(11px, .7vw, 15px);
+    font-size: clamp(14px, .82vw, 17px);
+  }
+
+  .nav-icon {
+    width: clamp(23px, 1.5vw, 30px);
+    height: clamp(23px, 1.5vw, 30px);
+  }
+
+  .page-heading h1 { font-size: clamp(21px, 1.25vw, 27px); }
+  .page-heading p,
+  .metric-label,
+  .metric-card small,
+  .panel-head p { font-size: clamp(11px, .68vw, 14px); }
+  .hero-card {
+    min-height: clamp(166px, 9.5vw, 210px);
+    padding: clamp(28px, 1.7vw, 38px);
+  }
+  .hero-card h2 { font-size: clamp(25px, 1.45vw, 32px); }
+  .hero-card p { font-size: clamp(14px, .82vw, 17px); }
+  .metric-card,
+  .panel { padding: clamp(19px, 1.2vw, 26px); }
+  .metric-card > strong { font-size: clamp(29px, 1.7vw, 37px); }
+  .panel-head h3 { font-size: clamp(15px, .92vw, 19px); }
+}
+
+@media (max-width: 1100px) {
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 850px) {
+  .sidebar { width: 252px; }
+  .main { width: 100%; margin-left: 0; }
+  .content { padding: 20px; }
+  .profile-copy,
+  .profile .chevron { display: none; }
+  .profile { padding-left: 8px; }
+}
+
+@media (max-width: 600px) {
+  .metric-grid { grid-template-columns: 1fr; }
+  .content { padding: 14px; }
+  .auth-shell { width: 100%; }
+}
