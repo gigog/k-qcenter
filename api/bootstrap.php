@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   source TEXT NOT NULL DEFAULT 'ONLINE',
   status TEXT NOT NULL DEFAULT 'CONFIRMED',
   idempotency_key TEXT UNIQUE,
+  citizen_id_hash TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -222,6 +223,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 SQL);
 
     ensureColumn($pdo, 'branches', 'building_id', 'INTEGER REFERENCES buildings(id)');
+    ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'TEXT');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -238,6 +240,7 @@ function migrateMariaDb(PDO $pdo): void
     if ($sql === false) throw new RuntimeException('Cannot read MariaDB schema');
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) $pdo->exec($statement);
     ensureColumn($pdo, 'branches', 'building_id', 'BIGINT UNSIGNED NULL');
+    ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'CHAR(64) NULL');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -359,6 +362,30 @@ function jsonInput(): array
     $data = json_decode($raw, true);
     if (!is_array($data)) throw new InvalidArgumentException('รูปแบบ JSON ไม่ถูกต้อง');
     return $data;
+}
+
+function normalizeCitizenId(string $value): string
+{
+    return preg_replace('/\D+/', '', $value) ?? '';
+}
+
+function normalizePhone(string $value): string
+{
+    return preg_replace('/\D+/', '', $value) ?? '';
+}
+
+function identityHash(string $citizenId): string
+{
+    $normalized=normalizeCitizenId($citizenId);
+    if(strlen($normalized)!==13)throw new DomainException('เลขบัตรประชาชนต้องมี 13 หลัก');
+    $keyFile=KQ_DATA . '/identity.key';
+    if(!is_file($keyFile)){
+        $key=bin2hex(random_bytes(32));
+        if(file_put_contents($keyFile,$key,LOCK_EX)===false)throw new RuntimeException('ไม่สามารถสร้างกุญแจปกป้องข้อมูลระบุตัวตน');
+        @chmod($keyFile,0600);
+    }
+    $key=trim((string)file_get_contents($keyFile));
+    return hash_hmac('sha256',$normalized,$key);
 }
 
 function respond(array $data, int $status = 200): never
