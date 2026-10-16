@@ -45,6 +45,8 @@ Browser เรียก `POST http://127.0.0.1:17890/read` ไปยัง Bridg
 
 หน้า Kiosk ตรวจสุขภาพ Bridge ทุก 30 วินาทีและมีปุ่ม `↻` สำหรับรีเฟรชการเชื่อมต่อ PC/SC ทันที นอกจากนี้ Scheduled Task `K-QCENTER Smart Card Watchdog` ตรวจพอร์ตทุก 1 นาทีและเริ่ม Bridge ใหม่อัตโนมัติเมื่อโปรเซสหยุดทำงาน
 
+Scheduled Task ทั้งสองรายการเรียกผ่าน `wscript.exe` และสคริปต์ VBS แบบ windowless เพื่อไม่ให้หน้าต่าง CMD หรือ PowerShell แสดงหรือกระพริบระหว่างการเริ่มระบบและการกู้คืน
+
 ## URL ช่วงทดลอง
 
 หน้า Kiosk อยู่ที่ `/dist/kiosk.html` ผ่าน Tailscale Serve และไม่ควรเปิดผ่าน Tailscale Funnel
