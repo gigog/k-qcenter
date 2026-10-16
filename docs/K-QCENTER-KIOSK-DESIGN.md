@@ -39,7 +39,9 @@
 
 ## Smart Card Bridge
 
-Browser เรียก `POST /smartcard/read` ผ่าน Same Origin ไปยัง Bridge ที่ติดตั้งประจำเครื่อง Kiosk โดย Bridge คืนเฉพาะข้อมูลที่ได้รับอนุญาตและจำเป็นต่อการค้นหา เช่น `citizen_id` และชื่อสำหรับเติมแบบฟอร์ม ห้ามส่งภาพบัตร ที่อยู่ ศาสนา หรือข้อมูลบนชิปส่วนที่ไม่เกี่ยวข้อง เซิร์ฟเวอร์เก็บเลขบัตรเป็น HMAC เท่านั้นใน `citizen_id_hash` โดยกุญแจอยู่ภายนอกฐานข้อมูล
+Browser เรียก `POST http://127.0.0.1:17890/read` ไปยัง Bridge ที่ติดตั้งประจำเครื่อง Kiosk โดย Bridge รับเฉพาะ Origin ของ K-QCENTER, bind เฉพาะ loopback และคืนเฉพาะ `citizen_id`, ชื่อ และชื่อเครื่องอ่าน ห้ามส่งภาพบัตร ที่อยู่ ศาสนา หรือข้อมูลบนชิปส่วนที่ไม่เกี่ยวข้อง เซิร์ฟเวอร์เก็บเลขบัตรเป็น HMAC เท่านั้นใน `citizen_id_hash` โดยกุญแจอยู่ภายนอกฐานข้อมูล
+
+ติดตั้ง Bridge บน Windows ด้วย `tools/install-smartcard-bridge.ps1` ระบบจะคัดลอกโปรแกรมไปยัง Local AppData และสร้าง Scheduled Task ชื่อ `K-QCENTER Smart Card Bridge` ให้เริ่มเมื่อผู้ใช้เข้าสู่ระบบ
 
 ## URL ช่วงทดลอง
 
