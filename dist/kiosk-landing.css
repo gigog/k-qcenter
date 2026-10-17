@@ -9,3 +9,6 @@
 .landing-alternatives{grid-template-columns:minmax(300px,560px);justify-content:center}
 .landing-alternatives button>.no-card-icon{position:relative;aspect-ratio:1}.landing-alternatives button>.no-card-icon::before{content:"";width:25px;height:18px;border:2px solid currentColor;border-radius:4px;box-sizing:border-box}.landing-alternatives button>.no-card-icon::after{content:"";position:absolute;width:31px;height:3px;border-radius:3px;background:currentColor;transform:rotate(-45deg)}
 .landing-alternatives:has(.no-card-button){grid-template-columns:auto}.landing-alternatives button.no-card-button{width:118px;min-height:0;aspect-ratio:1;padding:14px 10px;flex-direction:column;justify-content:center;gap:9px;text-align:center;border-radius:24px}.landing-alternatives button.no-card-button>i{flex:0 0 52px;width:52px;height:52px}.landing-alternatives button.no-card-button>span{flex:0}.landing-alternatives button.no-card-button strong{font-size:16px;line-height:1.2;white-space:nowrap}
+.home-hint{justify-content:center}
+.home-hint .text-home{min-height:52px;padding:12px 32px;border-radius:16px;background:#dc2626;color:#fff;font-size:17px;box-shadow:0 8px 20px rgba(220,38,38,.25)}
+.home-hint .text-home:active{background:#b91c1c}
