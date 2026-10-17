@@ -1,0 +1,16 @@
+SELECT JSON_OBJECT(
+  'format', 'k-qcenter-config-v1',
+  'exported_at', DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-%dT%H:%i:%sZ'),
+  'tables', JSON_OBJECT(
+    'buildings', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'code',code,'name',name,'is_24_hours',is_24_hours,'open_time',open_time,'close_time',close_time,'active',active,'created_at',created_at,'updated_at',updated_at)), JSON_ARRAY()) FROM buildings),
+    'branches', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'building_id',building_id,'code',code,'name',name,'open_time',open_time,'close_time',close_time,'closing_buffer_minutes',closing_buffer_minutes,'active',active,'created_at',created_at,'updated_at',updated_at)), JSON_ARRAY()) FROM branches),
+    'departments', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'branch_id',branch_id,'code',code,'name',name,'counter_count',counter_count,'efficiency',efficiency,'online_quota_percent',online_quota_percent,'walkin_quota_percent',walkin_quota_percent,'reserve_quota_percent',reserve_quota_percent,'active',active)), JSON_ARRAY()) FROM departments),
+    'services', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'department_id',department_id,'code',code,'name',name,'average_minutes',average_minutes,'preparation_minutes',preparation_minutes,'active',active)), JSON_ARRAY()) FROM services),
+    'kiosk_templates', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'building_id',building_id,'code',code,'name',name,'location_label',location_label,'active',active,'created_at',created_at,'updated_at',updated_at)), JSON_ARRAY()) FROM kiosk_templates),
+    'kiosk_menu_items', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'template_id',template_id,'parent_id',parent_id,'department_id',department_id,'service_id',service_id,'label',label,'subtitle',subtitle,'icon',icon,'sort_order',sort_order,'start_time',start_time,'end_time',end_time,'active',active,'created_at',created_at,'updated_at',updated_at)), JSON_ARRAY()) FROM kiosk_menu_items),
+    'calendar_overrides', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'branch_id',branch_id,'override_date',override_date,'name',name,'is_closed',is_closed,'open_time',open_time,'close_time',close_time,'note',note,'active',active,'created_at',created_at,'updated_at',updated_at)), JSON_ARRAY()) FROM calendar_overrides),
+    'weekly_hours', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'scope_type',scope_type,'scope_id',scope_id,'weekday',weekday,'interval_order',interval_order,'open_time',open_time,'close_time',close_time,'active',active)), JSON_ARRAY()) FROM weekly_hours),
+    'weekly_schedule_config', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('scope_type',scope_type,'scope_id',scope_id,'updated_at',updated_at)), JSON_ARRAY()) FROM weekly_schedule_config),
+    'schedule_overrides', (SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT('id',id,'scope_type',scope_type,'scope_id',scope_id,'override_date',override_date,'name',name,'is_closed',is_closed,'open_time',open_time,'close_time',close_time,'counter_count',counter_count,'note',note,'active',active,'created_at',created_at,'updated_at',updated_at)), JSON_ARRAY()) FROM schedule_overrides)
+  )
+);
