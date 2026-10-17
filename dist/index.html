@@ -33,7 +33,7 @@
 
       <nav class="nav" aria-label="เมนูหลัก">
         <button class="nav-item active" data-view="dashboard"><span class="nav-icon">⌂</span><span>ภาพรวม</span></button>
-        <button class="nav-item" data-view="queues"><span class="nav-icon">Q</span><span>คิววันนี้</span><span class="nav-count">12</span></button>
+        <button class="nav-item" data-view="queues"><span class="nav-icon">Q</span><span>Monitor ห้องบัตร</span><span class="nav-count">0</span></button>
         <button class="nav-item" data-view="capacity"><span class="nav-icon">▦</span><span>Slot และกำลังบริการ</span></button>
         <button class="nav-item" data-view="branches"><span class="nav-icon">⌘</span><span>สาขาและแผนก</span></button>
         <button class="nav-item" data-view="services"><span class="nav-icon">≡</span><span>ประเภทบริการ</span></button>
@@ -170,15 +170,13 @@
   <div class="modal-backdrop hidden" id="modalBackdrop">
     <form class="modal" id="slotForm">
       <div class="modal-head"><div><span class="eyebrow">ตั้งค่ากำลังบริการ</span><h2>ปรับ Slot แผนกทะเบียน</h2></div><button type="button" class="icon-button" id="closeModal">×</button></div>
+      <input id="slotIdInput" type="hidden">
       <div class="form-grid">
-        <label>เวลาเริ่ม<input type="time" value="17:00" required></label>
-        <label>เวลาสิ้นสุด<input type="time" value="17:30" required></label>
-        <label>ช่องบริการ<input id="counterInput" type="number" min="1" max="20" value="4" required></label>
-        <label>เวลาเฉลี่ยต่อคิว<input id="durationInput" type="number" min="1" value="15" required><span>นาที</span></label>
-        <label>ประสิทธิภาพ<select id="efficiencyInput"><option value="0.7">70%</option><option value="0.8" selected>80%</option><option value="0.9">90%</option></select></label>
-        <label>โควตาออนไลน์<input type="number" min="0" max="100" value="70" required><span>%</span></label>
+        <label>เวลาเริ่ม<input id="slotStartInput" type="time" value="17:00" readonly></label>
+        <label>เวลาสิ้นสุด<input id="slotEndInput" type="time" value="17:30" readonly></label>
+        <label>จำนวนรับของช่วงเวลานี้<input id="manualCapacityInput" type="number" min="0" max="1000" value="6" required></label>
       </div>
-      <div class="calculation"><span>Capacity ที่แนะนำ</span><strong id="capacityResult">6 คิว</strong><small>คำนวณจากระยะเวลา ช่องบริการ และประสิทธิภาพ</small></div>
+      <div class="calculation"><span>การกำหนดจำนวนรับ</span><strong>กำหนดเอง</strong><small>ระบบจะไม่คำนวณจากอัตรากำลังในช่วงนี้</small></div>
       <div class="modal-actions"><button type="button" class="secondary" id="cancelModal">ยกเลิก</button><button class="primary" type="submit">บันทึกการตั้งค่า</button></div>
     </form>
   </div>

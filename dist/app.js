@@ -20,7 +20,7 @@ document.getElementById('queueChart').innerHTML = chartData.map((v,i) => `
   <div class="bar-group"><i class="bar in" style="height:${v[0]/max*92}%"></i><i class="bar out" style="height:${v[1]/max*92}%"></i><span class="bar-label">${8+i}:00</span></div>`).join('');
 
 const views = {
-  queues:{title:'คิววันนี้',subtitle:'ติดตามและควบคุมคิวแบบเรียลไทม์',action:'＋ เพิ่มคิว Walk-in',type:'table'},
+  queues:{title:'Monitor ห้องบัตร',subtitle:'ติดตามการลงทะเบียน เปิด Visit และส่งผู้ป่วยรายแผนก',action:'↻ อัปเดต',type:'table'},
   capacity:{title:'Slot และกำลังบริการ',subtitle:'กำหนดความจุให้เหมาะสมกับเวลาทำการ',action:'＋ ปรับ Slot',type:'capacity'},
   branches:{title:'สาขาและแผนก',subtitle:'โครงสร้างหน่วยบริการของ K-QCENTER',action:'＋ เพิ่มสาขา',type:'branches'},
   services:{title:'ประเภทบริการ',subtitle:'ระยะเวลา เงื่อนไข และแผนกที่ให้บริการ',action:'＋ เพิ่มบริการ',type:'services'},
@@ -57,7 +57,7 @@ function switchView(view){
  if(view==='dashboard'){dashboard.classList.remove('hidden');generic.classList.add('hidden');document.getElementById('pageTitle').textContent='ภาพรวมระบบ';return}
  dashboard.classList.add('hidden');generic.classList.remove('hidden');const v=views[view];document.getElementById('pageTitle').textContent=v.title;
  document.getElementById('viewContent').innerHTML=`<div class="page-card"><div class="page-toolbar"><div><h2>${v.title}</h2><p>${v.subtitle}</p></div><button class="primary page-action">${v.action}</button></div>${contentFor(view)}</div>`;
- document.querySelector('.page-action').onclick=()=> view==='capacity'?openModal():showToast('บันทึกคำสั่งแล้ว — หน้าฟอร์มจะเชื่อม API ในระยะถัดไป');
+ document.querySelector('.page-action').onclick=()=> view==='capacity'?showToast('เลือก “ปรับจำนวนรับ” จากช่วงเวลาที่ต้องการ'):showToast('บันทึกคำสั่งแล้ว — หน้าฟอร์มจะเชื่อม API ในระยะถัดไป');
  document.querySelectorAll('.test-connection').forEach(b=>b.onclick=()=>showToast('ทดสอบสำเร็จ · ตอบสนองภายใน 42 ms'));
  document.getElementById('sidebar').classList.remove('open');
 }
@@ -67,10 +67,9 @@ document.querySelectorAll('[data-jump]').forEach(n=>n.onclick=()=>switchView(n.d
 document.getElementById('menuButton').onclick=()=>document.getElementById('sidebar').classList.toggle('open');
 
 const modal=document.getElementById('modalBackdrop');
-function openModal(){modal.classList.remove('hidden');calculateCapacity()}
+function openModal(){modal.classList.remove('hidden')}
+function openSlotCapacityModal(slot){document.getElementById('slotIdInput').value=slot.id;document.getElementById('slotStartInput').value=String(slot.start_time).slice(0,5);document.getElementById('slotEndInput').value=String(slot.end_time).slice(0,5);document.getElementById('manualCapacityInput').value=slot.capacity;document.querySelector('#slotForm h2').textContent=`ปรับ Slot ${slot.department_name}`;openModal()}
 function closeModal(){modal.classList.add('hidden')}
 document.getElementById('closeModal').onclick=closeModal;document.getElementById('cancelModal').onclick=closeModal;
-['counterInput','durationInput','efficiencyInput'].forEach(id=>document.getElementById(id).addEventListener('input',calculateCapacity));
-function calculateCapacity(){const c=+document.getElementById('counterInput').value||0,d=+document.getElementById('durationInput').value||1,e=+document.getElementById('efficiencyInput').value;document.getElementById('capacityResult').textContent=`${Math.floor(30*c*e/d)} คิว`}
-document.getElementById('slotForm').onsubmit=e=>{e.preventDefault();closeModal();showToast('บันทึก Slot และคำนวณ Capacity ใหม่แล้ว')};
+document.getElementById('slotForm').onsubmit=async e=>{e.preventDefault();const id=+document.getElementById('slotIdInput').value;if(!id){showToast('กรุณาเลือกช่วงเวลาจากตาราง Slot');return}const capacity=+document.getElementById('manualCapacityInput').value;try{await kqApi('update-slot',{method:'POST',body:JSON.stringify({id,capacity,mode:'MANUAL'})});closeModal();showToast('บันทึกจำนวนรับของช่วงเวลาแล้ว');await hydrateView('capacity')}catch(error){showToast(error.message)}};
 function showToast(message){const t=document.getElementById('toast');t.textContent='✓  '+message;t.classList.add('show');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.classList.remove('show'),2800)}

@@ -33,13 +33,15 @@ CREATE TABLE IF NOT EXISTS departments (
   code VARCHAR(40) NOT NULL, name VARCHAR(255) NOT NULL, counter_count INT UNSIGNED NOT NULL DEFAULT 1,
   efficiency DECIMAL(5,4) NOT NULL DEFAULT 0.8000, online_quota_percent INT UNSIGNED NOT NULL DEFAULT 70,
   walkin_quota_percent INT UNSIGNED NOT NULL DEFAULT 20, reserve_quota_percent INT UNSIGNED NOT NULL DEFAULT 10,
+  daily_capacity INT UNSIGNED NULL, slot_minutes INT UNSIGNED NULL,
   active TINYINT(1) NOT NULL DEFAULT 1, UNIQUE KEY uq_department_code(branch_id,code),
   CONSTRAINT fk_departments_branch FOREIGN KEY(branch_id) REFERENCES branches(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS services (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, department_id BIGINT UNSIGNED NOT NULL,
   code VARCHAR(40) NOT NULL UNIQUE, name VARCHAR(255) NOT NULL, average_minutes INT UNSIGNED NOT NULL,
-  preparation_minutes INT UNSIGNED NOT NULL DEFAULT 0, active TINYINT(1) NOT NULL DEFAULT 1,
+  preparation_minutes INT UNSIGNED NOT NULL DEFAULT 0, slot_minutes INT UNSIGNED NOT NULL DEFAULT 30,
+  default_capacity INT UNSIGNED NOT NULL DEFAULT 1, active TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_services_department FOREIGN KEY(department_id) REFERENCES departments(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS kiosk_templates (
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS kiosk_menu_items (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, template_id BIGINT UNSIGNED NOT NULL,
   parent_id BIGINT UNSIGNED NULL, department_id BIGINT UNSIGNED NULL, service_id BIGINT UNSIGNED NULL,
   label VARCHAR(255) NOT NULL, subtitle VARCHAR(255) NULL, icon VARCHAR(20) NOT NULL DEFAULT 'Q',
-  sort_order INT UNSIGNED NOT NULL DEFAULT 0, start_time TIME NULL, end_time TIME NULL,
+  sort_order INT UNSIGNED NOT NULL DEFAULT 0, start_time TIME NULL, end_time TIME NULL, schedule_json TEXT NULL,
   active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_kiosk_menu_template(template_id,parent_id,sort_order),
@@ -90,7 +92,9 @@ CREATE TABLE IF NOT EXISTS slots (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, department_id BIGINT UNSIGNED NOT NULL, service_id BIGINT UNSIGNED NULL,
   slot_date DATE NOT NULL, start_time TIME NOT NULL, end_time TIME NOT NULL, capacity INT UNSIGNED NOT NULL,
   online_capacity INT UNSIGNED NOT NULL DEFAULT 0, walkin_capacity INT UNSIGNED NOT NULL DEFAULT 0,
-  reserve_capacity INT UNSIGNED NOT NULL DEFAULT 0, booked_count INT UNSIGNED NOT NULL DEFAULT 0,
+  reserve_capacity INT UNSIGNED NOT NULL DEFAULT 0, provider_count INT UNSIGNED NOT NULL DEFAULT 1,
+  capacity_locked TINYINT(1) NOT NULL DEFAULT 0, capacity_mode VARCHAR(20) NOT NULL DEFAULT 'AUTO',
+  booked_count INT UNSIGNED NOT NULL DEFAULT 0,
   active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_slot(department_id,service_id,slot_date,start_time), KEY idx_slots_date(slot_date,department_id),
   CONSTRAINT fk_slots_department FOREIGN KEY(department_id) REFERENCES departments(id),

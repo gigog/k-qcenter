@@ -5,10 +5,11 @@ let csrfToken = '';
 
 async function kqApi(action, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
-  const response = await fetch(`${KQ_API}?action=${encodeURIComponent(action)}`, {
+  const query=new URLSearchParams({action});Object.entries(options.query||{}).forEach(([key,value])=>{if(value!==''&&value!==null&&value!==undefined)query.set(key,value)});const fetchOptions={...options};delete fetchOptions.query;
+  const response = await fetch(`${KQ_API}?${query.toString()}`, {
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(method !== 'GET' && csrfToken ? {'X-CSRF-Token': csrfToken} : {}), ...(options.headers || {}) },
-    ...options
+    ...fetchOptions
   });
   const body = await response.json().catch(() => ({ error: 'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง' }));
   if (body.csrf_token) csrfToken = body.csrf_token;
@@ -23,6 +24,7 @@ async function kqApi(action, options = {}) {
 const authGate = document.getElementById('authGate');
 const authForm = document.getElementById('authForm');
 let setupMode = false;
+const capacityFilters={date:KQThaiDate.todayISO(),department_id:''};
 
 function setAuthMode(setup) {
   setupMode = setup;
@@ -78,22 +80,52 @@ function renderTable(headers, rows) {
 async function hydrateView(view) {
   try {
     let result;
-    if (view === 'queues') result = await kqApi('bookings');
-    else if (view === 'capacity') result = await kqApi('slots');
+    if (view === 'queues') result = await kqApi('registration-monitor');
+    else if (view === 'capacity') {const responses=await Promise.all([kqApi('slots',{query:capacityFilters}),kqApi('departments')]);result=responses[0];result.departments=responses[1].data;}
     else if (['branches', 'services', 'audit'].includes(view)) result = await kqApi(view);
     else return;
 
     const card = document.querySelector('#viewContent .page-card');
     const existing = card?.querySelector('.table-wrap,.branch-grid');
     if (!existing) return;
-    if (view === 'queues') existing.outerHTML = renderTable(['เลขอ้างอิง','ผู้รับบริการ','บริการ','เวลานัด','สถานะ'], result.data.map(item => [escapeHtml(item.reference_no),escapeHtml(item.customer_name),escapeHtml(item.service_name),`${item.start_time} น.`,`<span class="badge blue">${escapeHtml(item.status)}</span>`]));
-    if (view === 'capacity') existing.outerHTML = renderTable(['ช่วงเวลา','แผนก','บริการ','Capacity','จองแล้ว','สถานะ'], result.data.map(item => [`${item.start_time}–${item.end_time} น.`,escapeHtml(item.department_name),escapeHtml(item.service_name),item.capacity,item.booked_count,`<span class="badge ${Number(item.booked_count)>=Number(item.capacity)?'amber':'green'}">${Number(item.booked_count)>=Number(item.capacity)?'เต็ม':'เปิด'}</span>`]));
+    if (view === 'queues') {
+      card.innerHTML = registrationMonitorHtml(result);
+      const count=document.querySelector('.nav-item[data-view="queues"] .nav-count');if(count)count.textContent=String(result.departments.reduce((sum,item)=>sum+Number(item.waiting),0));
+      bindRegistrationMonitor();
+    }
+    if (view === 'capacity') {
+      let filters=card.querySelector('.capacity-filter-bar');if(!filters){filters=document.createElement('div');filters.className='capacity-filter-bar';card.querySelector('.table-wrap')?.before(filters)}filters.innerHTML=`<label>วันที่<select data-capacity-date>${KQThaiDate.options(capacityFilters.date,30,180)}</select></label><label>จุดบริการ/แผนก<select data-capacity-department><option value="">ทุกจุดบริการ</option>${result.departments.map(item=>`<option value="${item.id}" ${String(item.id)===String(capacityFilters.department_id)?'selected':''}>${escapeHtml(item.name)} · ${escapeHtml(item.branch_name)}</option>`).join('')}</select></label><button type="button" class="secondary" data-capacity-clear>ล้างตัวกรอง</button>`;
+      filters.querySelector('[data-capacity-date]').onchange=event=>{capacityFilters.date=event.target.value;hydrateView('capacity')};filters.querySelector('[data-capacity-department]').onchange=event=>{capacityFilters.department_id=event.target.value;hydrateView('capacity')};filters.querySelector('[data-capacity-clear]').onclick=()=>{capacityFilters.date=KQThaiDate.todayISO();capacityFilters.department_id='';hydrateView('capacity')};
+      existing.outerHTML = renderTable(['ช่วงเวลา','แผนก','บริการ','จำนวนรับ','จองแล้ว','ที่มา','สถานะ',''], result.data.map(item => [`${item.start_time}–${item.end_time} น.`,escapeHtml(item.department_name),escapeHtml(item.service_name),item.capacity,item.booked_count,item.capacity_mode==='MANUAL'?'ปรับเฉพาะช่วง':item.capacity_mode==='TODAY_OVERRIDE'?'ปรับช่วงที่เหลือวันนี้':'ค่ามาตรฐานแผนก',`<span class="badge ${Number(item.booked_count)>=Number(item.capacity)?'amber':'green'}">${Number(item.booked_count)>=Number(item.capacity)?'เต็ม':'เปิด'}</span>`,`<button class="record-button" data-slot-capacity="${item.id}">ปรับจำนวนรับ</button>`]));
+      document.querySelectorAll('[data-slot-capacity]').forEach(button=>button.onclick=()=>openSlotCapacityModal(result.data.find(item=>String(item.id)===button.dataset.slotCapacity)));
+      const action=document.querySelector('#viewContent .page-action');if(action){const isToday=capacityFilters.date===KQThaiDate.todayISO();action.textContent=isToday?'± ปรับช่วงที่เหลือวันนี้':'เลือกวันนี้เพื่อปรับระหว่างวัน';action.disabled=!isToday;action.onclick=isToday?()=>openRemainingCapacityDialog(result.data):null;}
+    }
     if (view === 'services') existing.outerHTML = renderTable(['รหัส','ชื่อบริการ','แผนก','เวลาเฉลี่ย','สถานะ'], result.data.map(item => [escapeHtml(item.code),escapeHtml(item.name),escapeHtml(item.department_name),`${item.average_minutes} นาที`,'<span class="badge green">เปิด</span>']));
     if (view === 'branches') existing.innerHTML = result.data.map(item => `<article class="branch-card"><div class="branch-top"><h3>${escapeHtml(item.name)}</h3><span class="badge green">เปิดบริการ</span></div><p>รหัส ${escapeHtml(item.code)}</p><div class="branch-meta"><div><span>เวลาทำการ</span><strong>${item.open_time}–${item.close_time} น.</strong></div><div><span>โครงสร้าง</span><strong>${item.department_count} แผนก · ${item.counter_count} ช่อง</strong></div></div></article>`).join('');
     if (view === 'audit') existing.outerHTML = renderTable(['วันเวลา','ผู้กระทำ','กิจกรรม','ประเภท','ผลลัพธ์'], result.data.map(item => [escapeHtml(KQThaiDate.dateTime(item.created_at)),escapeHtml(item.display_name || 'ระบบ'),escapeHtml(item.action),escapeHtml(item.entity_type),'<span class="badge green">สำเร็จ</span>']));
   } catch (error) {
     showToast(error.message);
   }
+}
+
+function registrationMonitorHtml(result) {
+  const summaries=result.departments.map(item=>{
+    const next=item.next_slot;
+    const countdown=next?`เริ่ม Slot ${String(next.start_time).slice(0,5)} น. ใน ${item.minutes_to_next_slot} นาที · จอง ${next.booked_count}/${next.capacity}`:'ไม่มี Slot ถัดไปวันนี้';
+    return `<article class="registration-summary"><header><div><strong>${escapeHtml(item.department_name)}</strong><span>${item.current_slot?`Slot ปัจจุบัน ${String(item.current_slot.start_time).slice(0,5)}–${String(item.current_slot.end_time).slice(0,5)} น.`:'ขณะนี้อยู่นอกช่วง Slot'}</span></div><b>${escapeHtml(countdown)}</b></header><div class="registration-metrics"><div><span>มาถึงแล้ว</span><strong>${item.arrived}</strong></div><div><span>กำลังรอ</span><strong>${item.waiting}</strong></div><div><span>กำลังเปิด Visit</span><strong>${item.in_progress}</strong></div><div><span>ส่งแผนกแล้ว</span><strong>${item.sent}</strong></div><div><span>รอเฉลี่ย</span><strong>${item.average_wait_minutes} นาที</strong></div><div><span>รอนานสุด</span><strong>${item.longest_wait_minutes} นาที</strong></div></div></article>`;
+  }).join('')||'<div class="monitor-empty">วันนี้ยังไม่มี Slot ที่เปิดให้บริการ</div>';
+  const statusLabel={REGISTRATION_WAITING:'รอห้องบัตร',REGISTRATION_CALLED:'เรียกแล้ว',REGISTRATION_IN_PROGRESS:'กำลังเปิด Visit',SENT_TO_DEPARTMENT:'ส่งแผนกแล้ว'};
+  const rows=result.tickets.map(item=>{let actions='—';if(result.can_manage&&item.current_step==='REGISTRATION_WAITING')actions=`<button class="record-button" data-queue-action="CALL" data-ticket-id="${item.id}">เรียกคิว</button> <button class="record-button primary-inline" data-queue-action="START_REGISTRATION" data-ticket-id="${item.id}">เริ่มเปิด Visit</button>`;else if(result.can_manage&&item.current_step==='REGISTRATION_CALLED')actions=`<button class="record-button primary-inline" data-queue-action="START_REGISTRATION" data-ticket-id="${item.id}">เริ่มเปิด Visit</button>`;else if(result.can_manage&&item.current_step==='REGISTRATION_IN_PROGRESS')actions=`<button class="record-button success-inline" data-queue-action="SEND_DEPARTMENT" data-ticket-id="${item.id}">เปิด Visit แล้ว · ส่งแผนก</button>`;return [`<strong>${escapeHtml(item.queue_no)}</strong><small>${item.source==='ONLINE'?'จองออนไลน์':'Walk-in'}</small>`,escapeHtml(item.customer_display),`<strong>${escapeHtml(item.department_name)}</strong><small>${escapeHtml(item.service_name||'')}</small>`,`${String(item.start_time).slice(0,5)}–${String(item.end_time).slice(0,5)} น.`,`${item.wait_minutes} นาที`,`<span class="badge ${item.current_step==='SENT_TO_DEPARTMENT'?'green':item.current_step==='REGISTRATION_IN_PROGRESS'?'blue':'amber'}">${escapeHtml(statusLabel[item.current_step]||item.current_step)}</span>`,actions];});
+  return `<div class="page-toolbar"><div><h2>Monitor ห้องบัตร</h2><p>ข้อมูลจริงของวันที่ ${escapeHtml(KQThaiDate.date(result.date))} · อัปเดตอัตโนมัติทุก 30 วินาที</p></div><button class="primary page-action" data-monitor-refresh>↻ อัปเดต</button></div><div class="registration-summary-grid">${summaries}</div>${renderTable(['เลขคิว','ผู้รับบริการ','แผนก/บริการ','ช่วงลงทะเบียน','รอแล้ว','สถานะ','ดำเนินการ'],rows)}`;
+}
+
+function bindRegistrationMonitor(){document.querySelector('[data-monitor-refresh]')?.addEventListener('click',()=>hydrateView('queues'));document.querySelectorAll('[data-queue-action]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await kqApi('queue-transition',{method:'POST',body:JSON.stringify({ticket_id:Number(button.dataset.ticketId),transition:button.dataset.queueAction})});showToast('อัปเดตสถานะคิวแล้ว');await hydrateView('queues')}catch(error){showToast(error.message)}finally{button.disabled=false}}));}
+
+setInterval(()=>{if(document.querySelector('.nav-item[data-view="queues"]')?.classList.contains('active')&&!authGate.classList.contains('hidden'))hydrateView('queues')},30000);
+
+function openRemainingCapacityDialog(slots){
+  const departments=[...new Map(slots.map(item=>[String(item.department_id),{id:item.department_id,name:item.department_name}])).values()];if(!departments.length){showToast('วันนี้ยังไม่มี Slot ที่ปรับได้');return}
+  const wrap=document.createElement('div');wrap.className='modal-backdrop';wrap.innerHTML=`<form class="modal"><div class="modal-head"><div><span class="eyebrow">TODAY OVERRIDE</span><h2>ปรับ Slot ที่เหลือวันนี้</h2></div><button type="button" class="icon-button" data-close>×</button></div><p class="remaining-help">เพิ่มหรือลดจำนวนรับรวม ระบบจะกระจายเฉพาะ Slot ที่ยังไม่เริ่ม ไม่มีการจอง และยังไม่ถูกล็อก</p><div class="form-grid"><label>แผนก<select name="department_id" required>${departments.map(item=>`<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('')}</select></label><label>จำนวนที่ต้องการเพิ่มหรือลด<input name="adjustment" type="number" min="-10000" max="10000" placeholder="เช่น 20 หรือ -10" required></label></div><div class="auth-error hidden" data-error></div><div class="modal-actions"><button type="button" class="secondary" data-close>ยกเลิก</button><button type="submit" class="primary">กระจายจำนวนรับ</button></div></form>`;document.body.appendChild(wrap);wrap.querySelectorAll('[data-close]').forEach(button=>button.onclick=()=>wrap.remove());wrap.querySelector('form').onsubmit=async event=>{event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));const error=wrap.querySelector('[data-error]');try{const result=await kqApi('adjust-remaining-slots',{method:'POST',body:JSON.stringify({department_id:Number(data.department_id),adjustment:Number(data.adjustment)})});wrap.remove();showToast(`ปรับ ${result.slot_count} Slot แล้ว · รวม ${result.old_total} เป็น ${result.new_total} คิว`);await hydrateView('capacity')}catch(err){error.textContent=err.message;error.classList.remove('hidden')}};
 }
 
 function finishAuth(user) {

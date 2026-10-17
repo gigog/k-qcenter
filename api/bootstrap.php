@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS departments (
   online_quota_percent INTEGER NOT NULL DEFAULT 70,
   walkin_quota_percent INTEGER NOT NULL DEFAULT 20,
   reserve_quota_percent INTEGER NOT NULL DEFAULT 10,
+  daily_capacity INTEGER,
+  slot_minutes INTEGER,
   active INTEGER NOT NULL DEFAULT 1,
   UNIQUE(branch_id, code)
 );
@@ -98,6 +100,8 @@ CREATE TABLE IF NOT EXISTS services (
   name TEXT NOT NULL,
   average_minutes INTEGER NOT NULL CHECK(average_minutes > 0),
   preparation_minutes INTEGER NOT NULL DEFAULT 0,
+  slot_minutes INTEGER NOT NULL DEFAULT 30,
+  default_capacity INTEGER NOT NULL DEFAULT 1,
   active INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS kiosk_templates (
@@ -113,7 +117,7 @@ CREATE TABLE IF NOT EXISTS kiosk_menu_items (
   parent_id INTEGER REFERENCES kiosk_menu_items(id) ON DELETE CASCADE,
   department_id INTEGER REFERENCES departments(id), service_id INTEGER REFERENCES services(id),
   label TEXT NOT NULL, subtitle TEXT, icon TEXT NOT NULL DEFAULT 'Q', sort_order INTEGER NOT NULL DEFAULT 0,
-  start_time TEXT, end_time TEXT, active INTEGER NOT NULL DEFAULT 1,
+  start_time TEXT, end_time TEXT, schedule_json TEXT, active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS calendar_overrides (
@@ -174,6 +178,9 @@ CREATE TABLE IF NOT EXISTS slots (
   online_capacity INTEGER NOT NULL DEFAULT 0,
   walkin_capacity INTEGER NOT NULL DEFAULT 0,
   reserve_capacity INTEGER NOT NULL DEFAULT 0,
+  provider_count INTEGER NOT NULL DEFAULT 1,
+  capacity_locked INTEGER NOT NULL DEFAULT 0,
+  capacity_mode TEXT NOT NULL DEFAULT 'AUTO',
   booked_count INTEGER NOT NULL DEFAULT 0 CHECK(booked_count >= 0),
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -245,6 +252,14 @@ SQL);
     ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'TEXT');
     ensureColumn($pdo, 'users', 'scope_type', "TEXT NOT NULL DEFAULT 'ALL'");
     ensureColumn($pdo, 'users', 'scope_id', 'INTEGER');
+    ensureColumn($pdo, 'kiosk_menu_items', 'schedule_json', 'TEXT');
+    ensureColumn($pdo, 'slots', 'capacity_locked', 'INTEGER NOT NULL DEFAULT 0');
+    ensureColumn($pdo, 'slots', 'provider_count', 'INTEGER NOT NULL DEFAULT 1');
+    ensureColumn($pdo, 'slots', 'capacity_mode', "TEXT NOT NULL DEFAULT 'AUTO'");
+    ensureColumn($pdo, 'services', 'slot_minutes', 'INTEGER NOT NULL DEFAULT 30');
+    ensureColumn($pdo, 'services', 'default_capacity', 'INTEGER NOT NULL DEFAULT 1');
+    ensureColumn($pdo, 'departments', 'daily_capacity', 'INTEGER');
+    ensureColumn($pdo, 'departments', 'slot_minutes', 'INTEGER');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -264,6 +279,14 @@ function migrateMariaDb(PDO $pdo): void
     ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'CHAR(64) NULL');
     ensureColumn($pdo, 'users', 'scope_type', "VARCHAR(20) NOT NULL DEFAULT 'ALL'");
     ensureColumn($pdo, 'users', 'scope_id', 'BIGINT UNSIGNED NULL');
+    ensureColumn($pdo, 'kiosk_menu_items', 'schedule_json', 'TEXT NULL');
+    ensureColumn($pdo, 'slots', 'capacity_locked', 'TINYINT(1) NOT NULL DEFAULT 0');
+    ensureColumn($pdo, 'slots', 'provider_count', 'INT UNSIGNED NOT NULL DEFAULT 1');
+    ensureColumn($pdo, 'slots', 'capacity_mode', "VARCHAR(20) NOT NULL DEFAULT 'AUTO'");
+    ensureColumn($pdo, 'services', 'slot_minutes', 'INT UNSIGNED NOT NULL DEFAULT 30');
+    ensureColumn($pdo, 'services', 'default_capacity', 'INT UNSIGNED NOT NULL DEFAULT 1');
+    ensureColumn($pdo, 'departments', 'daily_capacity', 'INT UNSIGNED NULL');
+    ensureColumn($pdo, 'departments', 'slot_minutes', 'INT UNSIGNED NULL');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -314,7 +337,8 @@ function seed(PDO $pdo): void
 
 function generateSlots(PDO $pdo, string $date): int
 {
-    $pdo->prepare('DELETE FROM slots WHERE slot_date=? AND booked_count=0')->execute([$date]);
+    $todayBangkok=(new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')))->format('Y-m-d');$refreshExistingCapacity=$date>$todayBangkok;
+    $pdo->prepare('UPDATE slots SET active=0 WHERE slot_date=?')->execute([$date]);
     $departments = $pdo->query('SELECT d.*,b.open_time branch_open,b.close_time branch_close,b.closing_buffer_minutes,b.building_id,g.is_24_hours building_24,g.open_time building_open,g.close_time building_close FROM departments d JOIN branches b ON b.id=d.branch_id LEFT JOIN buildings g ON g.id=b.building_id WHERE d.active=1 AND b.active=1 AND (g.id IS NULL OR g.active=1)')->fetchAll();
     $created = 0;
     foreach ($departments as $department) {
@@ -324,18 +348,24 @@ function generateSlots(PDO $pdo, string $date): int
         if (!$service) continue;
         [$intervals,$counterOverride] = effectiveIntervals($pdo,$department,$date);
         $counterCount = $counterOverride ?: (int)$department['counter_count'];
+        $slotDefinitions=[];$configuredMinutes=(int)($department['slot_minutes']??0);
         foreach ($intervals as [$startMinute,$endMinute]) {
-          for ($minute=$startMinute; $minute+30<=$endMinute; $minute+=30) {
-            $effective = max(1, (int)$service['average_minutes'] + (int)$service['preparation_minutes']);
-            $capacity = max(1, (int)floor(30 * $counterCount * (float)$department['efficiency'] / $effective));
+          if($configuredMinutes<1){$slotDefinitions[]=[$startMinute,$endMinute];continue;}
+          $slotMinutes=max(15,min(240,$configuredMinutes));
+          for($minute=$startMinute;$minute<$endMinute;$minute+=$slotMinutes)$slotDefinitions[]=[$minute,min($minute+$slotMinutes,$endMinute)];
+        }
+        $slotCount=count($slotDefinitions);if($slotCount<1)continue;$dailyCapacity=(int)($department['daily_capacity']??0);if($dailyCapacity<1)$dailyCapacity=max(1,(int)($service['default_capacity']??1))*$slotCount;$baseCapacity=intdiv($dailyCapacity,$slotCount);$capacityRemainder=$dailyCapacity%$slotCount;
+        foreach ($slotDefinitions as $slotIndex=>[$minute,$slotEndMinute]) {
+            $capacity = $baseCapacity+($slotIndex<$capacityRemainder?1:0);
             $online = (int)floor($capacity * (int)$department['online_quota_percent'] / 100);
             $walkin = (int)floor($capacity * (int)$department['walkin_quota_percent'] / 100);
             $reserve = max(0, $capacity - $online - $walkin);
-            $verb=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'?'INSERT IGNORE':'INSERT OR IGNORE';
-            $stmt = $pdo->prepare($verb.' INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity) VALUES (?,?,?,?,?,?,?,?,?)');
-            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($minute+30),$capacity,$online,$walkin,$reserve]);
+            $canRefresh=$refreshExistingCapacity?'1':'0';
+            if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql')$sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,1) ON DUPLICATE KEY UPDATE end_time=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(end_time),end_time),capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(capacity),capacity),online_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(online_capacity),online_capacity),walkin_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(walkin_capacity),walkin_capacity),reserve_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(reserve_capacity),reserve_capacity),provider_count=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(provider_count),provider_count),capacity_mode=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(capacity_mode),capacity_mode),active=1";
+            else $sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(department_id,service_id,slot_date,start_time) DO UPDATE SET end_time=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.end_time ELSE slots.end_time END,capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.capacity ELSE slots.capacity END,online_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.online_capacity ELSE slots.online_capacity END,walkin_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.walkin_capacity ELSE slots.walkin_capacity END,reserve_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.reserve_capacity ELSE slots.reserve_capacity END,provider_count=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.provider_count ELSE slots.provider_count END,capacity_mode=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.capacity_mode ELSE slots.capacity_mode END,active=1";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($slotEndMinute),$capacity,$online,$walkin,$reserve,$counterCount,'DEPARTMENT_CONFIG']);
             $created += $stmt->rowCount();
-          }
         }
     }
     return $created;
@@ -351,7 +381,6 @@ function effectiveIntervals(PDO $pdo, array $department, string $date): array
     if($hasDepartmentRule&& !$departmentIntervals)return [[],null];
     $result=intersectIntervals($building,$branch);
     if($hasDepartmentRule)$result=intersectIntervals($result,$departmentIntervals);
-    if($result){$last=count($result)-1;$result[$last][1]=max($result[$last][0],$result[$last][1]-(int)$department['closing_buffer_minutes']);}
     return [array_values(array_filter($result,fn($i)=>$i[1]>$i[0])),$counterOverride];
 }
 
@@ -546,21 +575,30 @@ function upsertWeeklyScheduleConfig(PDO $pdo,string $type,int $scopeId): void
 
 function newPublicId(): string { return bin2hex(random_bytes(16)); }
 
-function nextQueueNo(PDO $pdo, int $departmentId, string $slotDate): string
+function queuePrefix(?string $configured, int $departmentId): string
 {
-    $prefix = chr(65 + (($departmentId - 1) % 26));
-    $stmt = $pdo->prepare('SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND s.slot_date=?');
-    $stmt->execute([$departmentId,$slotDate]);
+    $prefix=mb_strtoupper(trim((string)$configured),'UTF-8');
+    $prefix=preg_replace('/[^\p{L}\p{N}]/u','',$prefix)??'';
+    $prefix=mb_substr($prefix,0,4,'UTF-8');
+    return $prefix!==''?$prefix:chr(65+(($departmentId-1)%26));
+}
+
+function nextQueueNo(PDO $pdo, int $departmentId, string $slotDate, ?string $configuredPrefix=null): string
+{
+    $prefix=queuePrefix($configuredPrefix,$departmentId);
+    $stmt=$pdo->prepare('SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND s.slot_date=? AND q.queue_no LIKE ?');
+    $stmt->execute([$departmentId,$slotDate,$prefix.'-%']);
     return sprintf('%s-%03d',$prefix,(int)$stmt->fetchColumn()+1);
 }
 
-function createQueueTicket(PDO $pdo, array $booking): array
+function createQueueTicket(PDO $pdo, array $booking, ?string $configuredPrefix=null): array
 {
     $existing=$pdo->prepare('SELECT * FROM queue_tickets WHERE booking_id=?');$existing->execute([$booking['id']]);
-    if($ticket=$existing->fetch())return $ticket;
+    if($ticket=$existing->fetch())return queueTicketDetail($pdo,(int)$ticket['id']);
     $slot=$pdo->prepare('SELECT department_id,slot_date FROM slots WHERE id=?');$slot->execute([$booking['slot_id']]);$slotRow=$slot->fetch();$departmentId=(int)($slotRow['department_id']??0);
     if($departmentId<1)throw new DomainException('ไม่พบแผนกของรายการนี้');
-    $publicId=newPublicId();$queueNo=nextQueueNo($pdo,$departmentId,(string)$slotRow['slot_date']);
+    if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'){$departmentLock=$pdo->prepare('SELECT id FROM departments WHERE id=? FOR UPDATE');$departmentLock->execute([$departmentId]);}
+    $publicId=newPublicId();$queueNo=nextQueueNo($pdo,$departmentId,(string)$slotRow['slot_date'],$configuredPrefix);
     $waiting=$pdo->prepare("SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND q.status IN ('WAITING','CALLED')");$waiting->execute([$departmentId]);
     $estimated=(int)$waiting->fetchColumn()*10;
     $stmt=$pdo->prepare("INSERT INTO queue_tickets(public_id,booking_id,queue_no,source,status,current_step,checked_in_at,estimated_wait_minutes) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,?)");
@@ -568,7 +606,12 @@ function createQueueTicket(PDO $pdo, array $booking): array
     $id=(int)$pdo->lastInsertId();
     $pdo->prepare("INSERT INTO queue_events(queue_ticket_id,event_type,status,step,note) VALUES (?,?,?,?,?)")->execute([$id,'CHECKED_IN','WAITING','REGISTRATION_WAITING','ยืนยันการมาถึงและเข้าคิวแล้ว']);
     $pdo->prepare("UPDATE bookings SET status='CHECKED_IN',updated_at=CURRENT_TIMESTAMP WHERE id=?")->execute([$booking['id']]);
-    $stmt=$pdo->prepare('SELECT * FROM queue_tickets WHERE id=?');$stmt->execute([$id]);return $stmt->fetch();
+    return queueTicketDetail($pdo,$id);
+}
+
+function queueTicketDetail(PDO $pdo,int $ticketId): array
+{
+    $stmt=$pdo->prepare('SELECT q.*,b.reference_no,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name,br.name branch_name FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE q.id=?');$stmt->execute([$ticketId]);$ticket=$stmt->fetch();if(!$ticket)throw new DomainException('ไม่พบข้อมูลบัตรคิว');return $ticket;
 }
 
 function maskThaiName(string $name): string

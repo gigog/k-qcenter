@@ -1,6 +1,10 @@
 param(
     [int]$Port = 17890,
-    [string[]]$AllowedOrigins = @('https://web-lab.tail53909d.ts.net:8443'),
+    [string[]]$AllowedOrigins = @(
+        'https://web-lab.tail53909d.ts.net:8443',
+        'http://localhost',
+        'http://127.0.0.1'
+    ),
     [int]$StartupDelayMs = 0
 )
 
@@ -89,7 +93,7 @@ function Read-ThaiIdentityCard {
 function Write-HttpResponse($Stream, [int]$Status, [string]$Body, [string]$Origin) {
     $statusText = if ($Status -eq 200) {'OK'} elseif ($Status -eq 204) {'No Content'} elseif ($Status -eq 403) {'Forbidden'} else {'Bad Request'}
     $payload = [Text.Encoding]::UTF8.GetBytes($Body)
-    $headers = "HTTP/1.1 $Status $statusText`r`nContent-Type: application/json; charset=utf-8`r`nContent-Length: $($payload.Length)`r`nAccess-Control-Allow-Origin: $Origin`r`nAccess-Control-Allow-Methods: POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n"
+    $headers = "HTTP/1.1 $Status $statusText`r`nContent-Type: application/json; charset=utf-8`r`nContent-Length: $($payload.Length)`r`nAccess-Control-Allow-Origin: $Origin`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nAccess-Control-Allow-Private-Network: true`r`nVary: Origin, Access-Control-Request-Private-Network`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n"
     $headerBytes = [Text.Encoding]::ASCII.GetBytes($headers)
     $Stream.Write($headerBytes,0,$headerBytes.Length)
     if ($payload.Length) { $Stream.Write($payload,0,$payload.Length) }
