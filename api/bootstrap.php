@@ -343,7 +343,7 @@ function seed(PDO $pdo): void
 
 function generateSlots(PDO $pdo, string $date): int
 {
-    $todayBangkok=(new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')))->format('Y-m-d');$refreshExistingCapacity=$date>$todayBangkok;
+    $todayBangkok=(new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')))->format('Y-m-d');$refreshExistingCapacity=$date>=$todayBangkok;
     $pdo->prepare('UPDATE slots SET active=0 WHERE slot_date=?')->execute([$date]);
     $departments = $pdo->query('SELECT d.*,b.open_time branch_open,b.close_time branch_close,b.closing_buffer_minutes,b.building_id,g.is_24_hours building_24,g.open_time building_open,g.close_time building_close FROM departments d JOIN branches b ON b.id=d.branch_id LEFT JOIN buildings g ON g.id=b.building_id WHERE d.active=1 AND b.active=1 AND (g.id IS NULL OR g.active=1)')->fetchAll();
     $created = 0;
