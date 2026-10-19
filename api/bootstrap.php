@@ -442,10 +442,18 @@ function normalizePhone(string $value): string
     return preg_replace('/\D+/', '', $value) ?? '';
 }
 
+function validThaiCitizenId(string $value): bool
+{
+    $cid=normalizeCitizenId($value);
+    if(!preg_match('/^\d{13}$/',$cid)||preg_match('/^(\d)\1{12}$/',$cid))return false;
+    $sum=0;for($i=0;$i<12;$i++)$sum+=(int)$cid[$i]*(13-$i);
+    return ((11-($sum%11))%10)===(int)$cid[12];
+}
+
 function identityHash(string $citizenId): string
 {
     $normalized=normalizeCitizenId($citizenId);
-    if(strlen($normalized)!==13)throw new DomainException('เลขบัตรประชาชนต้องมี 13 หลัก');
+    if(!validThaiCitizenId($normalized))throw new DomainException('เลขบัตรประชาชนไม่ถูกต้อง กรุณาตรวจสอบ 13 หลัก');
     $keyFile=KQ_DATA . '/identity.key';
     if(!is_file($keyFile)){
         $key=bin2hex(random_bytes(32));

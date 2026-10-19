@@ -314,7 +314,7 @@ try {
         try {
             if ($idempotency) {
                 $stmt=$pdo->prepare('SELECT * FROM bookings WHERE idempotency_key=?'); $stmt->execute([$idempotency]);
-                if ($existing=$stmt->fetch()) { $pdo->exec('COMMIT'); respond(['ok'=>true,'booking'=>$existing,'duplicate'=>true]); }
+                if ($existing=$stmt->fetch()) { $pdo->exec('COMMIT'); respond(['ok'=>true,'booking'=>['id'=>(int)$existing['id'],'public_id'=>$existing['public_id'],'reference_no'=>$existing['reference_no'],'status'=>$existing['status']],'duplicate'=>true]); }
             }
             $slot=selectSlotForUpdate($pdo,(int)$in['slot_id']);
             if(!$slot) throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');
