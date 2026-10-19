@@ -14,6 +14,10 @@ clear_env = yes
 env[KQCENTER_DB_DSN] = "mysql:host=localhost;dbname=kqcenter;charset=utf8mb4"
 env[KQCENTER_DB_USER] = "kqcenter_app"
 env[KQCENTER_DB_PASSWORD] = "REPLACE_WITH_SERVER_SECRET"
+; HOSxP v3 read-only MariaDB account. Do not grant INSERT/UPDATE/DELETE.
+env[KQCENTER_HOSXP_DSN] = "mysql:host=HOSXP_DB_IP;port=3306;dbname=hos;charset=utf8mb4"
+env[KQCENTER_HOSXP_USER] = "kqcenter_hosxp_ro"
+env[KQCENTER_HOSXP_PASSWORD] = "REPLACE_WITH_HOSXP_READ_ONLY_SECRET"
 php_admin_value[session.cookie_secure] = 1
 php_admin_value[session.cookie_httponly] = 1
 php_admin_value[session.cookie_samesite] = Strict

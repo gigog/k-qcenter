@@ -125,6 +125,17 @@ CREATE TABLE IF NOT EXISTS queue_events (
   note TEXT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_queue_events_ticket(queue_ticket_id,created_at),
   CONSTRAINT fk_events_queue FOREIGN KEY(queue_ticket_id) REFERENCES queue_tickets(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS hosxp_visit_links (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  queue_ticket_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  hn_hash CHAR(64) NOT NULL, hn_ciphertext TEXT NOT NULL, vn_ciphertext TEXT NULL,
+  visit_date DATE NULL, visit_time TIME NULL, current_department VARCHAR(255) NULL,
+  current_department_code VARCHAR(20) NULL, raw_status VARCHAR(50) NULL,
+  sync_status VARCHAR(30) NOT NULL DEFAULT 'WAITING_FOR_VISIT', last_error VARCHAR(255) NULL,
+  last_synced_at DATETIME NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_hosxp_link_queue FOREIGN KEY(queue_ticket_id) REFERENCES queue_tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id BIGINT UNSIGNED NULL,
   action VARCHAR(80) NOT NULL, entity_type VARCHAR(80) NOT NULL, entity_id VARCHAR(100) NULL,

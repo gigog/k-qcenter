@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/hosxp.php';
+
 const KQ_ROOT = __DIR__ . '/..';
 define('KQ_DATA', getenv('KQCENTER_DATA_PATH') ?: KQ_ROOT . '/data');
 define('KQ_DB', getenv('KQCENTER_DB_PATH') ?: KQ_DATA . '/kqcenter.sqlite');
@@ -228,6 +230,14 @@ CREATE TABLE IF NOT EXISTS queue_events (
   step TEXT NOT NULL,
   note TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS hosxp_visit_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  queue_ticket_id INTEGER NOT NULL UNIQUE REFERENCES queue_tickets(id) ON DELETE CASCADE,
+  hn_hash TEXT NOT NULL, hn_ciphertext TEXT NOT NULL, vn_ciphertext TEXT,
+  visit_date TEXT, visit_time TEXT, current_department TEXT, current_department_code TEXT, raw_status TEXT,
+  sync_status TEXT NOT NULL DEFAULT 'WAITING_FOR_VISIT', last_error TEXT, last_synced_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
