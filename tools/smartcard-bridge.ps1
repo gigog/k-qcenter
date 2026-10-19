@@ -39,6 +39,24 @@ function Assert-SCardResult([int]$Code, [string]$Operation) {
     if ($Code -ne 0) { throw "$Operation ล้มเหลว (0x$($Code.ToString('X8')))" }
 }
 
+function Get-SmartCardReaderHealth {
+    [IntPtr]$context = [IntPtr]::Zero
+    try {
+        $result = [WinSCard]::SCardEstablishContext(0,[IntPtr]::Zero,[IntPtr]::Zero,[ref]$context)
+        if ($result -ne 0) { return @{ connected=$false; error_code=('0x' + $result.ToString('X8')) } }
+        [uint32]$length = 0
+        $result = [WinSCard]::SCardListReaders($context,$null,$null,[ref]$length)
+        if ($result -ne 0 -or $length -le 1) { return @{ connected=$false; error_code=('0x' + $result.ToString('X8')) } }
+        $buffer = New-Object Text.StringBuilder ([int]$length)
+        $result = [WinSCard]::SCardListReaders($context,$null,$buffer,[ref]$length)
+        if ($result -ne 0) { return @{ connected=$false; error_code=('0x' + $result.ToString('X8')) } }
+        $reader = ($buffer.ToString() -split "`0" | Where-Object { $_ } | Select-Object -First 1)
+        return @{ connected=[bool]$reader; reader=$reader; error_code=$null }
+    } finally {
+        if ($context -ne [IntPtr]::Zero) { [void][WinSCard]::SCardReleaseContext($context) }
+    }
+}
+
 function Send-Apdu([IntPtr]$Card, [uint32]$Protocol, [byte[]]$Command) {
     $pci = New-Object WinSCard+IORequest
     $pci.Protocol = $Protocol
@@ -132,7 +150,12 @@ try {
             $origin = [string]$headers['origin']
             if ($origin -notin $AllowedOrigins) { Write-HttpResponse $stream 403 '{"ok":false,"error":"Origin ไม่ได้รับอนุญาต"}' 'null'; continue }
             if ($requestLine -match '^OPTIONS /(read|health|restart) ') { Write-HttpResponse $stream 204 '' $origin; continue }
-            if ($requestLine -match '^GET /health ') { Write-HttpResponse $stream 200 '{"ok":true,"service":"K-QCENTER Smart Card Bridge"}' $origin; continue }
+            if ($requestLine -match '^GET /health ') {
+                $health = Get-SmartCardReaderHealth
+                $healthBody = @{ ok=$true; service='K-QCENTER Smart Card Bridge'; bridge_version=2; reader_connected=[bool]$health.connected; reader=$health.reader; error_code=$health.error_code } | ConvertTo-Json -Compress
+                Write-HttpResponse $stream 200 $healthBody $origin
+                continue
+            }
             if ($requestLine -match '^POST /restart ') {
                 [IntPtr]$testContext = [IntPtr]::Zero
                 $testResult = [WinSCard]::SCardEstablishContext(0,[IntPtr]::Zero,[IntPtr]::Zero,[ref]$testContext)
