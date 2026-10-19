@@ -13,7 +13,7 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-sr
 
 if ($requestPath === '/api' || $requestPath === '/api/' || $requestPath === '/api/index.php') {
     $action = (string)($_GET['action'] ?? '');
-    $allowed = ['health', 'public-slots', 'create-booking', 'queue-status'];
+    $allowed = ['health', 'public-slots', 'create-booking', 'queue-status', 'kiosk-lookup', 'hosxp-status', 'hosxp-link'];
     if (!in_array($action, $allowed, true)) {
         http_response_code(404);
         header('Content-Type: application/json; charset=utf-8');
@@ -37,6 +37,7 @@ $routes = [
     '/status.js' => ['dist/status.js', 'text/javascript; charset=utf-8'],
     '/thai-date.js' => ['dist/thai-date.js', 'text/javascript; charset=utf-8'],
     '/qrcode.js' => ['dist/qrcode.js', 'text/javascript; charset=utf-8'],
+    '/jsQR.js' => ['dist/jsQR.js', 'text/javascript; charset=utf-8'],
     '/public-queue.css' => ['dist/public-queue.css', 'text/css; charset=utf-8'],
     '/online-shell.css' => ['dist/online-shell.css', 'text/css; charset=utf-8'],
     '/online-shell.js' => ['dist/online-shell.js', 'text/javascript; charset=utf-8'],
