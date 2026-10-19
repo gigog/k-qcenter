@@ -357,10 +357,10 @@ try {
         requireMethod('POST');$in=jsonInput();$method=(string)($in['method']??'');$value=trim((string)($in['value']??''));
         if($value==='')fail('กรุณาระบุข้อมูลสำหรับค้นหา');
         $today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok')))->format('Y-m-d');
-        $base="SELECT b.public_id,b.reference_no,b.status,b.customer_name,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name,br.name branch_name,q.queue_no,q.current_step,q.status queue_status FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id LEFT JOIN queue_tickets q ON q.booking_id=b.id WHERE s.slot_date=? AND b.status NOT IN ('CANCELLED','EXPIRED')";
-        if($method==='code'){$stmt=$pdo->prepare($base.' AND (b.reference_no=? OR b.public_id=?) ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$value,$value]);}
+        $base="SELECT b.public_id,b.reference_no,b.status,b.customer_name,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name,br.name branch_name,q.public_id queue_public_id,q.queue_no,q.current_step,q.status queue_status FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id LEFT JOIN queue_tickets q ON q.booking_id=b.id WHERE s.slot_date=? AND b.status NOT IN ('CANCELLED','EXPIRED')";
+        if($method==='code'){$stmt=$pdo->prepare($base.' AND (b.reference_no=? OR b.public_id=? OR q.public_id=? OR q.queue_no=?) ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$value,$value,$value,$value]);}
         elseif($method==='phone'){$phone=normalizePhone($value);if(strlen($phone)<9)fail('หมายเลขโทรศัพท์ไม่ถูกต้อง');$stmt=$pdo->prepare($base." AND REPLACE(REPLACE(REPLACE(b.customer_phone,'-',''),' ',''),'+66','0')=? ORDER BY s.start_time LIMIT 5");$stmt->execute([$today,$phone]);}
-        elseif($method==='citizen'){$hash=identityHash($value);$stmt=$pdo->prepare($base.' AND b.citizen_id_hash=? ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$hash]);}
+        elseif($method==='citizen'){$citizenId=preg_replace('/\D/','',$value)??'';if(strlen($citizenId)!==13)fail('เลขบัตรประชาชนต้องมี 13 หลัก');$hash=identityHash($citizenId);$stmt=$pdo->prepare($base.' AND b.citizen_id_hash=? ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$hash]);}
         else fail('วิธีค้นหาไม่ถูกต้อง');
         $rows=array_map(function($row){$row['customer_display']=maskThaiName((string)$row['customer_name']);unset($row['customer_name']);return $row;},$stmt->fetchAll());
         respond(['ok'=>true,'data'=>$rows]);
