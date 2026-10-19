@@ -10,9 +10,8 @@ if [ ! -x "$TTS_ROOT/bootstrap/bin/python" ]; then
 fi
 sudo "$TTS_ROOT/bootstrap/bin/python" -m ensurepip --upgrade
 sudo "$TTS_ROOT/bootstrap/bin/python" -m pip install --upgrade pip uv
-if [ ! -x "$TTS_ROOT/runtime/bin/python" ]; then
-  sudo "$TTS_ROOT/bootstrap/bin/uv" venv --python 3.12 "$TTS_ROOT/runtime"
-fi
+sudo env UV_PYTHON_INSTALL_DIR="$TTS_ROOT/python" \
+  "$TTS_ROOT/bootstrap/bin/uv" venv --clear --python 3.12 "$TTS_ROOT/runtime"
 sudo "$TTS_ROOT/bootstrap/bin/uv" pip install --python "$TTS_ROOT/runtime/bin/python" 'piper-tts[th]==1.8.0'
 sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx" -o "$TTS_ROOT/models/th_TH-tsync2-medium.onnx"
 sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx.json" -o "$TTS_ROOT/models/th_TH-tsync2-medium.onnx.json"
