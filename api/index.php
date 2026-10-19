@@ -60,7 +60,7 @@ try {
         $python=getenv('KQCENTER_TTS_PYTHON')?:'/opt/kqcenter-tts/runtime/bin/python';$model=getenv('KQCENTER_TTS_MODEL')?:'/opt/kqcenter-tts/models/th_TH-tsync2-medium.onnx';
         if(!is_executable($python)||!is_readable($model))fail('บริการเสียง Offline ยังไม่พร้อมใช้งาน',503,['code'=>'TTS_UNAVAILABLE']);
         $cacheDir=KQ_DATA.'/tts-cache';if(!is_dir($cacheDir)&&!mkdir($cacheDir,0770,true)&&!is_dir($cacheDir))fail('ไม่สามารถเตรียมพื้นที่เก็บเสียงได้',500);
-        $file=$cacheDir.'/'.hash('sha256',$text.'|'.number_format($rate,1,'.','')).'.wav';
+        $file=$cacheDir.'/'.hash('sha256','v2|'.$text.'|'.number_format($rate,1,'.','')).'.wav';
         if(!is_file($file)){
             $tmp=$file.'.'.bin2hex(random_bytes(6)).'.tmp.wav';$lengthScale=.82/max(.5,$rate);$stderr='';$stdout='';$exit=1;
             $serviceUrl=getenv('KQCENTER_TTS_URL')?:'http://127.0.0.1:59125/synthesize';
