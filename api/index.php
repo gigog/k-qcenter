@@ -57,7 +57,7 @@ try {
         requireMethod('POST');requireUser();requireCsrf();$in=jsonInput();
         $text=trim((string)($in['text']??''));$rate=max(.5,min(1.5,(float)($in['rate']??.9)));
         if($text===''||mb_strlen($text)>300)fail('ข้อความเสียงต้องมีความยาว 1–300 ตัวอักษร');
-        $python=getenv('KQCENTER_TTS_PYTHON')?:'/opt/kqcenter-tts/venv/bin/python';$model=getenv('KQCENTER_TTS_MODEL')?:'/opt/kqcenter-tts/models/th_TH-tsync2-medium.onnx';
+        $python=getenv('KQCENTER_TTS_PYTHON')?:'/opt/kqcenter-tts/runtime/bin/python';$model=getenv('KQCENTER_TTS_MODEL')?:'/opt/kqcenter-tts/models/th_TH-tsync2-medium.onnx';
         if(!is_executable($python)||!is_readable($model))fail('บริการเสียง Offline ยังไม่พร้อมใช้งาน',503,['code'=>'TTS_UNAVAILABLE']);
         $cacheDir=KQ_DATA.'/tts-cache';if(!is_dir($cacheDir)&&!mkdir($cacheDir,0770,true)&&!is_dir($cacheDir))fail('ไม่สามารถเตรียมพื้นที่เก็บเสียงได้',500);
         $file=$cacheDir.'/'.hash('sha256',$text.'|'.number_format($rate,1,'.','')).'.wav';
