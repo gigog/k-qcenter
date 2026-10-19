@@ -53,6 +53,26 @@ try {
 
     if ($action === 'me') respond(['ok'=>true,'user'=>requireUser(),'csrf_token'=>csrfToken()]);
 
+    if ($action === 'tts') {
+        requireMethod('POST');requireUser();requireCsrf();$in=jsonInput();
+        $text=trim((string)($in['text']??''));$rate=max(.5,min(1.5,(float)($in['rate']??.9)));
+        if($text===''||mb_strlen($text)>300)fail('ข้อความเสียงต้องมีความยาว 1–300 ตัวอักษร');
+        $python=getenv('KQCENTER_TTS_PYTHON')?:'/opt/kqcenter-tts/venv/bin/python';$model=getenv('KQCENTER_TTS_MODEL')?:'/opt/kqcenter-tts/models/th_TH-tsync2-medium.onnx';
+        if(!is_executable($python)||!is_readable($model))fail('บริการเสียง Offline ยังไม่พร้อมใช้งาน',503,['code'=>'TTS_UNAVAILABLE']);
+        $cacheDir=KQ_DATA.'/tts-cache';if(!is_dir($cacheDir)&&!mkdir($cacheDir,0770,true)&&!is_dir($cacheDir))fail('ไม่สามารถเตรียมพื้นที่เก็บเสียงได้',500);
+        $file=$cacheDir.'/'.hash('sha256',$text.'|'.number_format($rate,1,'.','')).'.wav';
+        if(!is_file($file)){
+            $tmp=$file.'.'.bin2hex(random_bytes(6)).'.tmp.wav';$lengthScale=1/max(.5,$rate);
+            $command=[$python,'-m','piper','-m',$model,'-f',$tmp,'--length-scale',(string)$lengthScale,'--',$text];
+            $pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,['HOME'=>'/tmp','PATH'=>'/usr/bin:/bin']);
+            if(!is_resource($process))fail('ไม่สามารถเริ่มบริการสร้างเสียงได้',503,['code'=>'TTS_START_FAILED']);
+            fclose($pipes[0]);$stdout=stream_get_contents($pipes[1]);fclose($pipes[1]);$stderr=stream_get_contents($pipes[2]);fclose($pipes[2]);$exit=proc_close($process);
+            if($exit!==0||!is_file($tmp)||filesize($tmp)<44){@unlink($tmp);error_log('Piper TTS failed: '.$stderr.$stdout);fail('สร้างเสียงไม่สำเร็จ ระบบจะใช้เสียงสำรอง',503,['code'=>'TTS_GENERATION_FAILED']);}
+            if(!rename($tmp,$file)){@unlink($tmp);fail('ไม่สามารถบันทึกเสียงได้',500);}@chmod($file,0660);
+        }
+        header('Content-Type: audio/wav');header('Content-Length: '.filesize($file));header('Cache-Control: private, max-age=86400');readfile($file);exit;
+    }
+
     if ($action === 'users') {
         requireAdmin();
         $rows=$pdo->query("SELECT u.id,u.username,u.display_name,u.role,u.scope_type,u.scope_id,u.active,u.created_at,u.last_login_at,CASE WHEN u.scope_type='BRANCH' THEN (SELECT name FROM branches WHERE id=u.scope_id) WHEN u.scope_type='DEPARTMENT' THEN (SELECT name FROM departments WHERE id=u.scope_id) ELSE 'ทุกสาขาและแผนก' END scope_name FROM users u ORDER BY u.active DESC,u.display_name,u.id")->fetchAll();
