@@ -87,7 +87,7 @@ async function hydrateView(view) {
     else return;
 
     const card = document.querySelector('#viewContent .page-card');
-    const existing = card?.querySelector('.table-wrap,.branch-grid');
+    const existing = card?.querySelector('.table-wrap,.branch-grid,.connection-grid');
     if (!existing) return;
     if (view === 'queues') {
       card.innerHTML = registrationMonitorHtml(result);
