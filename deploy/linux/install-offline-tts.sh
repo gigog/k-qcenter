@@ -8,6 +8,7 @@ sudo install -d -m 0755 "$TTS_ROOT/models"
 if [ ! -x "$TTS_ROOT/venv/bin/python" ]; then
   sudo python3 -m venv "$TTS_ROOT/venv"
 fi
+sudo "$TTS_ROOT/venv/bin/python" -m ensurepip --upgrade
 sudo "$TTS_ROOT/venv/bin/python" -m pip install --upgrade pip
 sudo "$TTS_ROOT/venv/bin/python" -m pip install 'piper-tts==1.3.0'
 sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx" -o "$TTS_ROOT/models/th_TH-tsync2-medium.onnx"
