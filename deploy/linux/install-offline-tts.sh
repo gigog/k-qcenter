@@ -17,9 +17,8 @@ sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx" -o "$TTS_RO
 sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx.json" -o "$TTS_ROOT/models/th_TH-tsync2-medium.onnx.json"
 sudo chmod -R a+rX "$TTS_ROOT"
 
-TMP_WAV="$(mktemp --suffix=.wav)"
-trap 'rm -f "$TMP_WAV"' EXIT
-chmod 0666 "$TMP_WAV"
+TMP_WAV="$(sudo -u www-data mktemp --suffix=.wav)"
+trap 'sudo rm -f "$TMP_WAV"' EXIT
 sudo -u www-data "$TTS_ROOT/runtime/bin/python" -m piper -m "$TTS_ROOT/models/th_TH-tsync2-medium.onnx" -f "$TMP_WAV" -- 'ทดสอบระบบเสียงเรียกคิว'
 test -s "$TMP_WAV"
 echo "Offline Thai TTS installed at $TTS_ROOT"
