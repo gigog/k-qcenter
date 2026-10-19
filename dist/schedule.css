@@ -2,6 +2,7 @@
 .schedule-day>div:first-child{display:flex;align-items:center;justify-content:space-between}
 .schedule-day strong{font-size:12px}
 .schedule-dialog{overflow:hidden;display:flex;flex-direction:column}.schedule-dialog .schedule-days{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:10px;scrollbar-gutter:stable}.schedule-dialog .auth-error,.schedule-dialog .dialog-actions{flex:0 0 auto}
+.schedule-dialog .schedule-days::-webkit-scrollbar{width:10px}.schedule-dialog .schedule-days::-webkit-scrollbar-track{background:transparent;margin:10px 0}.schedule-dialog .schedule-days::-webkit-scrollbar-thumb{background:#8b8b8b;border:2px solid #fff;border-radius:999px}
 .period-row{display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:center;margin-top:8px}
 .period-row input{border:1px solid #dbe2eb;border-radius:8px;padding:8px;min-width:0}
 .period-row span{font-size:10px;color:var(--muted)}
