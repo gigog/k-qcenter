@@ -31,5 +31,6 @@ $watchdogAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-
 $watchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
 $watchdogSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -Action $watchdogAction -Trigger $watchdogTrigger -Principal $principal -Settings $watchdogSettings -Force | Out-Null
-Start-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge'
+$bridgeArguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$launcherTarget`""
+Start-Process -FilePath 'powershell.exe' -ArgumentList $bridgeArguments -WindowStyle Hidden
 Write-Output 'K-QCENTER Smart Card Bridge installed and started on 127.0.0.1:17890'
