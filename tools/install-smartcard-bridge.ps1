@@ -12,6 +12,7 @@ $watchdogHiddenSource = Join-Path $PSScriptRoot 'smartcard-watchdog-hidden.vbs'
 $watchdogHiddenTarget = Join-Path $targetDir 'smartcard-watchdog-hidden.vbs'
 if (Get-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -ErrorAction SilentlyContinue }
 if (Get-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge' -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge' -ErrorAction SilentlyContinue }
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like "*$targetDir*" } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
 Start-Sleep -Milliseconds 500
 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 Copy-Item -LiteralPath $source -Destination $target -Force
