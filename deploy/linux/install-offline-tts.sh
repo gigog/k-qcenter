@@ -19,6 +19,7 @@ sudo chmod -R a+rX "$TTS_ROOT"
 
 TMP_WAV="$(mktemp --suffix=.wav)"
 trap 'rm -f "$TMP_WAV"' EXIT
+sudo chown www-data:www-data "$TMP_WAV"
 sudo -u www-data "$TTS_ROOT/runtime/bin/python" -m piper -m "$TTS_ROOT/models/th_TH-tsync2-medium.onnx" -f "$TMP_WAV" -- 'ทดสอบระบบเสียงเรียกคิว'
 test -s "$TMP_WAV"
 echo "Offline Thai TTS installed at $TTS_ROOT"
