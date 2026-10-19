@@ -10,7 +10,7 @@ if [ ! -x "$TTS_ROOT/venv/bin/python" ]; then
 fi
 sudo "$TTS_ROOT/venv/bin/python" -m ensurepip --upgrade
 sudo "$TTS_ROOT/venv/bin/python" -m pip install --upgrade pip
-sudo "$TTS_ROOT/venv/bin/python" -m pip install 'piper-tts==1.3.0'
+sudo "$TTS_ROOT/venv/bin/python" -m pip install 'piper-tts[th]==1.8.0'
 sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx" -o "$TTS_ROOT/models/th_TH-tsync2-medium.onnx"
 sudo curl --fail --location --silent --show-error "$VOICE_BASE.onnx.json" -o "$TTS_ROOT/models/th_TH-tsync2-medium.onnx.json"
 sudo chmod -R a+rX "$TTS_ROOT"
