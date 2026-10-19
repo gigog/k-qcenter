@@ -33,8 +33,10 @@ User=www-data
 Group=www-data
 Environment=HOME=/tmp
 ExecStart=$TTS_ROOT/runtime/bin/python -m piper.http_server --host 127.0.0.1 --port 59125 -m $TTS_ROOT/models/th_TH-tsync2-medium.onnx
+ExecStartPost=/usr/bin/curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 1 -H 'Content-Type: application/json' --data '{"text":"warm up","length_scale":0.82}' http://127.0.0.1:59125/synthesize
 Restart=on-failure
 RestartSec=2
+TimeoutStartSec=45
 NoNewPrivileges=true
 PrivateTmp=true
 
