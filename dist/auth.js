@@ -82,6 +82,7 @@ async function hydrateView(view) {
     let result;
     if (view === 'queues') result = await kqApi('registration-monitor');
     else if (view === 'capacity') {const responses=await Promise.all([kqApi('slots',{query:capacityFilters}),kqApi('departments')]);result=responses[0];result.departments=responses[1].data;}
+    else if (view === 'connections') result = await kqApi('hosxp-health');
     else if (['branches', 'services', 'audit'].includes(view)) result = await kqApi(view);
     else return;
 
@@ -103,6 +104,19 @@ async function hydrateView(view) {
     if (view === 'services') existing.outerHTML = renderTable(['รหัส','ชื่อบริการ','แผนก','เวลาเฉลี่ย','สถานะ'], result.data.map(item => [escapeHtml(item.code),escapeHtml(item.name),escapeHtml(item.department_name),`${item.average_minutes} นาที`,'<span class="badge green">เปิด</span>']));
     if (view === 'branches') existing.innerHTML = result.data.map(item => `<article class="branch-card"><div class="branch-top"><h3>${escapeHtml(item.name)}</h3><span class="badge green">เปิดบริการ</span></div><p>รหัส ${escapeHtml(item.code)}</p><div class="branch-meta"><div><span>เวลาทำการ</span><strong>${item.open_time}–${item.close_time} น.</strong></div><div><span>โครงสร้าง</span><strong>${item.department_count} แผนก · ${item.counter_count} ช่อง</strong></div></div></article>`).join('');
     if (view === 'audit') existing.outerHTML = renderTable(['วันเวลา','ผู้กระทำ','กิจกรรม','ประเภท','ผลลัพธ์'], result.data.map(item => [escapeHtml(KQThaiDate.dateTime(item.created_at)),escapeHtml(item.display_name || 'ระบบ'),escapeHtml(item.action),escapeHtml(item.entity_type),'<span class="badge green">สำเร็จ</span>']));
+    if (view === 'connections') {
+      const hosxp=result.data||{};
+      const secure=location.protocol==='https:';
+      const cards=[
+        {icon:'API',name:'K-QCENTER API',detail:'API กลางของระบบคิว',ok:true,status:'ตอบสนองแล้ว'},
+        {icon:'DB',name:'MariaDB K-QCENTER',detail:'ฐานข้อมูลภายในเซิร์ฟเวอร์',ok:true,status:'เชื่อมต่อแล้ว'},
+        {icon:'HX',name:'HOSxP v3',detail:'อ่าน CID → HN → Visit วันนี้ แบบ Read-only',ok:Boolean(hosxp.enabled&&hosxp.connected),status:!hosxp.enabled?'ยังไม่ได้ตั้งค่า':hosxp.connected?'เชื่อมต่อแล้ว · สิทธิ์อ่านอย่างเดียว':'เชื่อมต่อไม่สำเร็จ'},
+        {icon:'TLS',name:'HTTPS',detail:escapeHtml(location.origin),ok:secure,status:secure?'เข้ารหัสการเชื่อมต่อแล้ว':'ไม่ได้เชื่อมต่อผ่าน HTTPS'}
+      ];
+      existing.outerHTML=`<div class="connection-grid">${cards.map(card=>`<article class="connection-card ${card.ok?'connection-ok':'connection-error'}"><div class="conn-icon">${card.icon}</div><div><h3>${card.name}</h3><p>${card.detail}</p><small>● ${card.status}</small></div></article>`).join('')}</div>`;
+      const action=document.querySelector('#viewContent .page-action');
+      if(action){action.textContent='↻ ทดสอบทั้งหมด';action.onclick=()=>hydrateView('connections');}
+    }
   } catch (error) {
     showToast(error.message);
   }
