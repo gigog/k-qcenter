@@ -7,14 +7,15 @@ window.KQQueueVoice=(()=>{
   const LETTERS={A:'เอ',B:'บี',C:'ซี',D:'ดี',E:'อี',F:'เอฟ',G:'จี',H:'เอช',I:'ไอ',J:'เจ',K:'เค',L:'แอล',M:'เอ็ม',N:'เอ็น',O:'โอ',P:'พี',Q:'คิว',R:'อาร์',S:'เอส',T:'ที',U:'ยู',V:'วี',W:'ดับเบิลยู',X:'เอ็กซ์',Y:'วาย',Z:'แซด'};
   const DIGITS=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'];
   const GENDER_HINTS={female:[/premwadee/i,/achara/i,/female/i,/หญิง/i,/google/i],male:[/niwat/i,/pattara/i,/male/i,/ชาย/i]};
-  const DEFAULTS={enabled:true,destination:'ห้องบัตร',repeat:2,gender:'female',rate:.9,voiceName:'',template:'ขอเชิญหมายเลข {queue}, ที่{destination}',dictionary:[]};
+  const LEGACY_TEMPLATE='ขอเชิญหมายเลข {queue}, ที่{destination}';
+  const DEFAULTS={enabled:true,destination:'ห้องบัตร',repeat:2,gender:'female',rate:.9,voiceName:'',template:'ขอเชิญหมายเลข {queue}, {name}, ที่{destination}',dictionary:[]};
   let audioContext=null;
   let serverCsrf='';
 
   function getAudioContext(){const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return null;audioContext=audioContext||new AudioCtx();return audioContext}
   function unlock(){try{const context=getAudioContext();if(!context)return false;context.resume();const source=context.createBufferSource();source.buffer=context.createBuffer(1,1,22050);source.connect(context.destination);source.start();return true}catch{return false}}
 
-  function normalize(raw={}){return {...DEFAULTS,...raw,repeat:Math.max(1,Math.min(3,Number(raw.repeat)||DEFAULTS.repeat)),rate:Math.max(.5,Math.min(1.5,Number(raw.rate)||DEFAULTS.rate)),dictionary:Array.isArray(raw.dictionary)?raw.dictionary:[]}}
+  function normalize(raw={}){const template=!raw.template||raw.template===LEGACY_TEMPLATE?DEFAULTS.template:raw.template;return {...DEFAULTS,...raw,template,repeat:Math.max(1,Math.min(3,Number(raw.repeat)||DEFAULTS.repeat)),rate:Math.max(.5,Math.min(1.5,Number(raw.rate)||DEFAULTS.rate)),dictionary:Array.isArray(raw.dictionary)?raw.dictionary:[]}}
   function settings(){try{const current=localStorage.getItem(STORAGE_KEY);if(current)return normalize(JSON.parse(current));return normalize(JSON.parse(localStorage.getItem(LEGACY_KEY)||'{}'))}catch{return normalize()}}
   function save(next){const value=normalize({...settings(),...next});try{localStorage.setItem(STORAGE_KEY,JSON.stringify(value))}catch{}return value}
   const supported=()=>'speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
@@ -25,7 +26,7 @@ window.KQQueueVoice=(()=>{
 
   function spokenQueueNo(queueNo){return String(queueNo||'').toUpperCase().split(/[-\s]+/).filter(Boolean).map(part=>{const words=[];let thai='';for(const char of part){if(LETTERS[char]||/\d/.test(char)){if(thai){words.push(thai);thai=''}words.push(LETTERS[char]||DIGITS[Number(char)])}else thai+=char}if(thai)words.push(thai);return words.join(' ')}).join(', ')}
   function applyDictionary(text,dictionary){return (dictionary||[]).reduce((result,item)=>{const from=String(item.from||'').trim(),to=String(item.to||'').trim();return from&&to?result.split(from).join(to):result},String(text||''))}
-  function phrase(queueNo,destination,override={}){const current={...settings(),...override};const text=String(current.template||DEFAULTS.template).replaceAll('{queue}',spokenQueueNo(queueNo)).replaceAll('{destination}',destination||current.destination);return applyDictionary(text,current.dictionary)}
+  function phrase(queueNo,destination,override={}){const current={...settings(),...override};const customerName=String(current.customerName||'ผู้รับบริการ').trim();let template=String(current.template||DEFAULTS.template);if(!template.includes('{name}'))template=template.replace('{queue}','{queue}, {name}');const text=template.replaceAll('{queue}',spokenQueueNo(queueNo)).replaceAll('{name}',customerName).replaceAll('{destination}',destination||current.destination);return applyDictionary(text,current.dictionary)}
   function chime(){return new Promise(resolve=>{try{const context=getAudioContext();if(!context)return resolve();if(context.state==='suspended')context.resume();const start=context.currentTime+.05;[[880,0],[660,.42]].forEach(([frequency,offset])=>{const osc=context.createOscillator(),gain=context.createGain();osc.type='sine';osc.frequency.value=frequency;gain.gain.setValueAtTime(.0001,start+offset);gain.gain.exponentialRampToValueAtTime(.35,start+offset+.03);gain.gain.exponentialRampToValueAtTime(.0001,start+offset+.6);osc.connect(gain).connect(context.destination);osc.start(start+offset);osc.stop(start+offset+.62)});setTimeout(resolve,1150)}catch{resolve()}})}
   function speak(text,voice,rate){return new Promise(resolve=>{const utterance=new SpeechSynthesisUtterance(text);utterance.lang='th-TH';if(voice)utterance.voice=voice;utterance.rate=rate;utterance.onend=resolve;utterance.onerror=resolve;speechSynthesis.speak(utterance)})}
   async function fetchServerAudio(text,current){if(!serverCsrf)return null;try{const response=await fetch('../api/index.php?action=tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':serverCsrf},body:JSON.stringify({text,rate:current.rate})});return response.ok?await response.arrayBuffer():null}catch{return null}}
