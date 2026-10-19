@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS departments (
   walkin_quota_percent INTEGER NOT NULL DEFAULT 20,
   reserve_quota_percent INTEGER NOT NULL DEFAULT 10,
   daily_capacity INTEGER,
+  unlimited_capacity INTEGER NOT NULL DEFAULT 0,
   slot_minutes INTEGER,
   active INTEGER NOT NULL DEFAULT 1,
   UNIQUE(branch_id, code)
@@ -181,6 +182,7 @@ CREATE TABLE IF NOT EXISTS slots (
   provider_count INTEGER NOT NULL DEFAULT 1,
   capacity_locked INTEGER NOT NULL DEFAULT 0,
   capacity_mode TEXT NOT NULL DEFAULT 'AUTO',
+  unlimited_capacity INTEGER NOT NULL DEFAULT 0,
   booked_count INTEGER NOT NULL DEFAULT 0 CHECK(booked_count >= 0),
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -259,7 +261,9 @@ SQL);
     ensureColumn($pdo, 'services', 'slot_minutes', 'INTEGER NOT NULL DEFAULT 30');
     ensureColumn($pdo, 'services', 'default_capacity', 'INTEGER NOT NULL DEFAULT 1');
     ensureColumn($pdo, 'departments', 'daily_capacity', 'INTEGER');
+    ensureColumn($pdo, 'departments', 'unlimited_capacity', 'INTEGER NOT NULL DEFAULT 0');
     ensureColumn($pdo, 'departments', 'slot_minutes', 'INTEGER');
+    ensureColumn($pdo, 'slots', 'unlimited_capacity', 'INTEGER NOT NULL DEFAULT 0');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -286,7 +290,9 @@ function migrateMariaDb(PDO $pdo): void
     ensureColumn($pdo, 'services', 'slot_minutes', 'INT UNSIGNED NOT NULL DEFAULT 30');
     ensureColumn($pdo, 'services', 'default_capacity', 'INT UNSIGNED NOT NULL DEFAULT 1');
     ensureColumn($pdo, 'departments', 'daily_capacity', 'INT UNSIGNED NULL');
+    ensureColumn($pdo, 'departments', 'unlimited_capacity', 'TINYINT(1) NOT NULL DEFAULT 0');
     ensureColumn($pdo, 'departments', 'slot_minutes', 'INT UNSIGNED NULL');
+    ensureColumn($pdo, 'slots', 'unlimited_capacity', 'TINYINT(1) NOT NULL DEFAULT 0');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -354,17 +360,17 @@ function generateSlots(PDO $pdo, string $date): int
           $slotMinutes=max(15,min(240,$configuredMinutes));
           for($minute=$startMinute;$minute<$endMinute;$minute+=$slotMinutes)$slotDefinitions[]=[$minute,min($minute+$slotMinutes,$endMinute)];
         }
-        $slotCount=count($slotDefinitions);if($slotCount<1)continue;$dailyCapacity=(int)($department['daily_capacity']??0);if($dailyCapacity<1)$dailyCapacity=max(1,(int)($service['default_capacity']??1))*$slotCount;$baseCapacity=intdiv($dailyCapacity,$slotCount);$capacityRemainder=$dailyCapacity%$slotCount;
+        $slotCount=count($slotDefinitions);if($slotCount<1)continue;$unlimited=(int)($department['unlimited_capacity']??0)===1;$dailyCapacity=(int)($department['daily_capacity']??0);if($dailyCapacity<1)$dailyCapacity=max(1,(int)($service['default_capacity']??1))*$slotCount;$baseCapacity=intdiv($dailyCapacity,$slotCount);$capacityRemainder=$dailyCapacity%$slotCount;
         foreach ($slotDefinitions as $slotIndex=>[$minute,$slotEndMinute]) {
             $capacity = $baseCapacity+($slotIndex<$capacityRemainder?1:0);
             $online = (int)floor($capacity * (int)$department['online_quota_percent'] / 100);
             $walkin = (int)floor($capacity * (int)$department['walkin_quota_percent'] / 100);
             $reserve = max(0, $capacity - $online - $walkin);
             $canRefresh=$refreshExistingCapacity?'1':'0';
-            if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql')$sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,1) ON DUPLICATE KEY UPDATE end_time=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(end_time),end_time),capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(capacity),capacity),online_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(online_capacity),online_capacity),walkin_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(walkin_capacity),walkin_capacity),reserve_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(reserve_capacity),reserve_capacity),provider_count=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(provider_count),provider_count),capacity_mode=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(capacity_mode),capacity_mode),active=1";
-            else $sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(department_id,service_id,slot_date,start_time) DO UPDATE SET end_time=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.end_time ELSE slots.end_time END,capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.capacity ELSE slots.capacity END,online_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.online_capacity ELSE slots.online_capacity END,walkin_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.walkin_capacity ELSE slots.walkin_capacity END,reserve_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.reserve_capacity ELSE slots.reserve_capacity END,provider_count=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.provider_count ELSE slots.provider_count END,capacity_mode=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.capacity_mode ELSE slots.capacity_mode END,active=1";
+            if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql')$sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,unlimited_capacity,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1) ON DUPLICATE KEY UPDATE end_time=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(end_time),end_time),capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(capacity),capacity),online_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(online_capacity),online_capacity),walkin_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(walkin_capacity),walkin_capacity),reserve_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(reserve_capacity),reserve_capacity),provider_count=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(provider_count),provider_count),capacity_mode=VALUES(capacity_mode),unlimited_capacity=VALUES(unlimited_capacity),active=1";
+            else $sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,unlimited_capacity,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(department_id,service_id,slot_date,start_time) DO UPDATE SET end_time=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.end_time ELSE slots.end_time END,capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.capacity ELSE slots.capacity END,online_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.online_capacity ELSE slots.online_capacity END,walkin_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.walkin_capacity ELSE slots.walkin_capacity END,reserve_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.reserve_capacity ELSE slots.reserve_capacity END,provider_count=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.provider_count ELSE slots.provider_count END,capacity_mode=excluded.capacity_mode,unlimited_capacity=excluded.unlimited_capacity,active=1";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($slotEndMinute),$capacity,$online,$walkin,$reserve,$counterCount,'DEPARTMENT_CONFIG']);
+            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($slotEndMinute),$capacity,$online,$walkin,$reserve,$counterCount,$unlimited?'UNLIMITED':'DEPARTMENT_CONFIG',$unlimited?1:0]);
             $created += $stmt->rowCount();
         }
     }
