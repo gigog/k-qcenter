@@ -62,11 +62,10 @@ try {
         $cacheDir=KQ_DATA.'/tts-cache';if(!is_dir($cacheDir)&&!mkdir($cacheDir,0770,true)&&!is_dir($cacheDir))fail('ไม่สามารถเตรียมพื้นที่เก็บเสียงได้',500);
         $file=$cacheDir.'/'.hash('sha256',$text.'|'.number_format($rate,1,'.','')).'.wav';
         if(!is_file($file)){
-            $tmp=$file.'.'.bin2hex(random_bytes(6)).'.tmp.wav';$lengthScale=1/max(.5,$rate);
-            $command=[$python,'-m','piper','-m',$model,'-f',$tmp,'--length-scale',(string)$lengthScale,'--',$text];
-            $pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,['HOME'=>'/tmp','PATH'=>'/usr/bin:/bin']);
-            if(!is_resource($process))fail('ไม่สามารถเริ่มบริการสร้างเสียงได้',503,['code'=>'TTS_START_FAILED']);
-            fclose($pipes[0]);$stdout=stream_get_contents($pipes[1]);fclose($pipes[1]);$stderr=stream_get_contents($pipes[2]);fclose($pipes[2]);$exit=proc_close($process);
+            $tmp=$file.'.'.bin2hex(random_bytes(6)).'.tmp.wav';$lengthScale=.82/max(.5,$rate);$stderr='';$stdout='';$exit=1;
+            $serviceUrl=getenv('KQCENTER_TTS_URL')?:'http://127.0.0.1:59125/synthesize';
+            if(function_exists('curl_init')){$curl=curl_init($serviceUrl);curl_setopt_array($curl,[CURLOPT_POST=>true,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_POSTFIELDS=>json_encode(['text'=>$text,'length_scale'=>$lengthScale],JSON_UNESCAPED_UNICODE),CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>1,CURLOPT_TIMEOUT=>15]);$audio=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);$stderr=(string)curl_error($curl);curl_close($curl);if($status===200&&is_string($audio)&&strlen($audio)>=44&&file_put_contents($tmp,$audio,LOCK_EX)!==false)$exit=0;}
+            if($exit!==0){$command=[$python,'-m','piper','-m',$model,'-f',$tmp,'--length-scale',(string)$lengthScale,'--',$text];$pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,null,['HOME'=>'/tmp','PATH'=>'/usr/bin:/bin']);if(is_resource($process)){fclose($pipes[0]);$stdout=stream_get_contents($pipes[1]);fclose($pipes[1]);$stderr.=stream_get_contents($pipes[2]);fclose($pipes[2]);$exit=proc_close($process);}}
             if($exit!==0||!is_file($tmp)||filesize($tmp)<44){@unlink($tmp);error_log('Piper TTS failed: '.$stderr.$stdout);fail('สร้างเสียงไม่สำเร็จ ระบบจะใช้เสียงสำรอง',503,['code'=>'TTS_GENERATION_FAILED']);}
             if(!rename($tmp,$file)){@unlink($tmp);fail('ไม่สามารถบันทึกเสียงได้',500);}@chmod($file,0660);
         }
