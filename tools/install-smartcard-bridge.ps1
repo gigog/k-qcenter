@@ -10,6 +10,9 @@ $hiddenSource = Join-Path $PSScriptRoot 'smartcard-bridge-hidden.vbs'
 $hiddenTarget = Join-Path $targetDir 'smartcard-bridge-hidden.vbs'
 $watchdogHiddenSource = Join-Path $PSScriptRoot 'smartcard-watchdog-hidden.vbs'
 $watchdogHiddenTarget = Join-Path $targetDir 'smartcard-watchdog-hidden.vbs'
+if (Get-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -ErrorAction SilentlyContinue }
+if (Get-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge' -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge' -ErrorAction SilentlyContinue }
+Start-Sleep -Milliseconds 500
 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 Copy-Item -LiteralPath $source -Destination $target -Force
 Copy-Item -LiteralPath $launcherSource -Destination $launcherTarget -Force
