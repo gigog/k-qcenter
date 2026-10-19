@@ -360,7 +360,7 @@ try {
         $base="SELECT b.public_id,b.reference_no,b.status,b.customer_name,s.slot_date,s.start_time,s.end_time,d.name department_name,sv.name service_name,br.name branch_name,q.public_id queue_public_id,q.queue_no,q.current_step,q.status queue_status FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id LEFT JOIN queue_tickets q ON q.booking_id=b.id WHERE s.slot_date=? AND b.status NOT IN ('CANCELLED','EXPIRED')";
         if($method==='code'){$stmt=$pdo->prepare($base.' AND (b.reference_no=? OR b.public_id=? OR q.public_id=? OR q.queue_no=?) ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$value,$value,$value,$value]);}
         elseif($method==='phone'){$phone=normalizePhone($value);if(strlen($phone)<9)fail('หมายเลขโทรศัพท์ไม่ถูกต้อง');$stmt=$pdo->prepare($base." AND REPLACE(REPLACE(REPLACE(b.customer_phone,'-',''),' ',''),'+66','0')=? ORDER BY s.start_time LIMIT 5");$stmt->execute([$today,$phone]);}
-        elseif($method==='citizen'){$citizenId=preg_replace('/\D/','',$value)??'';if(strlen($citizenId)!==13)fail('เลขบัตรประชาชนต้องมี 13 หลัก');$hash=identityHash($citizenId);$stmt=$pdo->prepare($base.' AND b.citizen_id_hash=? ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$hash]);}
+        elseif($method==='citizen'){$citizenId=normalizeCitizenId($value);if(!validThaiCitizenId($citizenId))fail('เลขบัตรประชาชนไม่ถูกต้อง กรุณาตรวจสอบ 13 หลัก');$hash=identityHash($citizenId);$stmt=$pdo->prepare($base.' AND b.citizen_id_hash=? ORDER BY s.start_time LIMIT 5');$stmt->execute([$today,$hash]);}
         else fail('วิธีค้นหาไม่ถูกต้อง');
         $rows=array_map(function($row){$row['customer_display']=maskThaiName((string)$row['customer_name']);unset($row['customer_name']);return $row;},$stmt->fetchAll());
         respond(['ok'=>true,'data'=>$rows]);
@@ -379,7 +379,7 @@ try {
 
     if ($action === 'hosxp-link') {
         requireMethod('POST');$in=jsonInput();$token=trim((string)($in['token']??''));$citizenId=preg_replace('/\D/','',(string)($in['citizen_id']??''))??'';
-        if(!preg_match('/^[a-f0-9]{32}$/',$token)||strlen($citizenId)!==13)fail('ข้อมูลสำหรับเชื่อมสถานะ HOSxP ไม่ถูกต้อง');
+        if(!preg_match('/^[a-f0-9]{32}$/',$token)||!validThaiCitizenId($citizenId))fail('ข้อมูลสำหรับเชื่อมสถานะ HOSxP ไม่ถูกต้อง');
         $stmt=$pdo->prepare('SELECT q.id,b.citizen_id_hash FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id WHERE q.public_id=? LIMIT 1');$stmt->execute([$token]);$ticket=$stmt->fetch();
         if(!$ticket||!hash_equals((string)$ticket['citizen_id_hash'],identityHash($citizenId)))fail('ไม่สามารถยืนยันตัวตนเพื่อเชื่อมสถานะ HOSxP',403);
         $result=hosxpLinkTicketByCitizen($pdo,(int)$ticket['id'],$citizenId);audit(null,'HOSXP_LINK','queue_ticket',(string)$ticket['id'],['sync_status'=>$result['sync_status']]);respond(['ok'=>true,'data'=>$result]);
