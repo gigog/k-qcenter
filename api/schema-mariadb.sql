@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   reference_no VARCHAR(40) NOT NULL UNIQUE, slot_id BIGINT UNSIGNED NOT NULL,
   customer_name VARCHAR(255) NOT NULL, customer_phone VARCHAR(40) NOT NULL,
   source VARCHAR(20) NOT NULL DEFAULT 'ONLINE', status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
-  idempotency_key VARCHAR(100) NULL UNIQUE, citizen_id_hash CHAR(64) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_bookings_slot_status(slot_id,status),
+  idempotency_key VARCHAR(100) NULL UNIQUE, citizen_id_hash CHAR(64) NULL, device_day_hash CHAR(64) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_bookings_slot_status(slot_id,status), UNIQUE KEY uq_bookings_device_day(device_day_hash),
   CONSTRAINT fk_bookings_slot FOREIGN KEY(slot_id) REFERENCES slots(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS queue_tickets (

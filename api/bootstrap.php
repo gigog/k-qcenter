@@ -201,6 +201,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   status TEXT NOT NULL DEFAULT 'CONFIRMED',
   idempotency_key TEXT UNIQUE,
   citizen_id_hash TEXT,
+  device_day_hash TEXT UNIQUE,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -262,6 +263,8 @@ SQL);
 
     ensureColumn($pdo, 'branches', 'building_id', 'INTEGER REFERENCES buildings(id)');
     ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'TEXT');
+    ensureColumn($pdo, 'bookings', 'device_day_hash', 'TEXT');
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_device_day ON bookings(device_day_hash)');
     ensureColumn($pdo, 'users', 'scope_type', "TEXT NOT NULL DEFAULT 'ALL'");
     ensureColumn($pdo, 'users', 'scope_id', 'INTEGER');
     ensureColumn($pdo, 'kiosk_menu_items', 'schedule_json', 'TEXT');
@@ -291,6 +294,8 @@ function migrateMariaDb(PDO $pdo): void
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) $pdo->exec($statement);
     ensureColumn($pdo, 'branches', 'building_id', 'BIGINT UNSIGNED NULL');
     ensureColumn($pdo, 'bookings', 'citizen_id_hash', 'CHAR(64) NULL');
+    ensureColumn($pdo, 'bookings', 'device_day_hash', 'CHAR(64) NULL');
+    ensureUniqueIndex($pdo,'bookings','uq_bookings_device_day','device_day_hash');
     ensureColumn($pdo, 'users', 'scope_type', "VARCHAR(20) NOT NULL DEFAULT 'ALL'");
     ensureColumn($pdo, 'users', 'scope_id', 'BIGINT UNSIGNED NULL');
     ensureColumn($pdo, 'kiosk_menu_items', 'schedule_json', 'TEXT NULL');
@@ -323,6 +328,14 @@ function ensureColumn(PDO $pdo, string $table, string $column, string $definitio
     $columns = $pdo->query("PRAGMA table_info($table)")->fetchAll();
     foreach ($columns as $item) if ($item['name'] === $column) return;
     $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+}
+
+function ensureUniqueIndex(PDO $pdo,string $table,string $index,string $column): void
+{
+    if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)!=='mysql')return;
+    $stmt=$pdo->prepare('SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?');
+    $stmt->execute([$table,$index]);
+    if(!$stmt->fetchColumn())$pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY `$index` (`$column`)");
 }
 
 function seed(PDO $pdo): void
@@ -454,14 +467,26 @@ function identityHash(string $citizenId): string
 {
     $normalized=normalizeCitizenId($citizenId);
     if(!validThaiCitizenId($normalized))throw new DomainException('เลขบัตรประชาชนไม่ถูกต้อง กรุณาตรวจสอบ 13 หลัก');
+    return hash_hmac('sha256',$normalized,identityKey());
+}
+
+function identityKey(): string
+{
     $keyFile=KQ_DATA . '/identity.key';
     if(!is_file($keyFile)){
         $key=bin2hex(random_bytes(32));
         if(file_put_contents($keyFile,$key,LOCK_EX)===false)throw new RuntimeException('ไม่สามารถสร้างกุญแจปกป้องข้อมูลระบุตัวตน');
         @chmod($keyFile,0600);
     }
-    $key=trim((string)file_get_contents($keyFile));
-    return hash_hmac('sha256',$normalized,$key);
+    return trim((string)file_get_contents($keyFile));
+}
+
+function deviceDayHash(string $deviceId,string $slotDate): string
+{
+    $deviceId=trim($deviceId);
+    if(!preg_match('/^[A-Za-z0-9_-]{16,128}$/',$deviceId))throw new DomainException('ไม่พบรหัสอุปกรณ์ กรุณาปิดและเปิด K-QOnline ใหม่');
+    if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$slotDate))throw new DomainException('วันที่จองไม่ถูกต้อง');
+    return hash_hmac('sha256',$deviceId.'|'.$slotDate,identityKey());
 }
 
 function respond(array $data, int $status = 200): never
