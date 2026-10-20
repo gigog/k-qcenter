@@ -5,6 +5,7 @@
 เอกสารข้อกำหนดและสถาปัตยกรรมฉบับหลัก:
 
 - [K-QCENTER System Specification](docs/K-QCENTER-SYSTEM-SPEC.md)
+- [ผังสรุปการทำงาน K-QOnline และ K-QCENTER](docs/K-QCENTER-FLOW-SUMMARY.md)
 - [คู่มือ Deploy และอัปเดตบน Windows/XAMPP](docs/DEPLOYMENT-WINDOWS.md)
 - [คู่มือ Deploy และอัปเดตบน Ubuntu/Nginx/MariaDB](docs/DEPLOYMENT-UBUNTU.md)
 
