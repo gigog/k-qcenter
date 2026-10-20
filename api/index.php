@@ -356,6 +356,22 @@ try {
         try{$stmt=$pdo->prepare('SELECT * FROM bookings WHERE public_id=?');$stmt->execute([$token]);$booking=$stmt->fetch();if(!$booking)throw new DomainException('ไม่พบรายการจอง');if(in_array($booking['status'],['CANCELLED','EXPIRED'],true))throw new DomainException('รายการจองนี้ไม่สามารถเช็กอินได้');$ticket=createQueueTicket($pdo,$booking);$pdo->exec('COMMIT');audit(null,'KIOSK_CHECK_IN','queue_ticket',(string)$ticket['id'],['queue_no'=>$ticket['queue_no']]);respond(['ok'=>true,'ticket'=>$ticket]);}catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
     }
 
+    if ($action === 'kiosk-cancel-queue') {
+        requireMethod('POST');$in=jsonInput();$token=trim((string)($in['token']??''));$citizenId=normalizeCitizenId((string)($in['citizen_id']??''));
+        if(!preg_match('/^[a-f0-9]{32}$/',$token)||!validThaiCitizenId($citizenId))fail('ข้อมูลยืนยันไม่ถูกต้อง');
+        beginCapacityTransaction($pdo);
+        try{
+            $stmt=$pdo->prepare('SELECT q.id ticket_id,q.booking_id,q.status queue_status,q.queue_no,b.slot_id,b.citizen_id_hash FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id WHERE q.public_id=?');$stmt->execute([$token]);$row=$stmt->fetch();
+            if(!$row||empty($row['citizen_id_hash'])||!hash_equals((string)$row['citizen_id_hash'],identityHash($citizenId)))throw new DomainException('ไม่พบคิวที่ตรงกับบัตรประชาชน');
+            if(!in_array($row['queue_status'],['WAITING','CALLED'],true))throw new DomainException('คิวนี้เริ่มให้บริการแล้ว กรุณาติดต่อเจ้าหน้าที่');
+            $pdo->prepare("UPDATE queue_tickets SET status='CANCELLED',current_step='CANCELLED',updated_at=CURRENT_TIMESTAMP WHERE id=?")->execute([$row['ticket_id']]);
+            $pdo->prepare("UPDATE bookings SET status='CANCELLED',updated_at=CURRENT_TIMESTAMP WHERE id=?")->execute([$row['booking_id']]);
+            $pdo->prepare('UPDATE slots SET booked_count=CASE WHEN booked_count>0 THEN booked_count-1 ELSE 0 END WHERE id=?')->execute([$row['slot_id']]);
+            $pdo->prepare("INSERT INTO queue_events(queue_ticket_id,event_type,status,step,note) VALUES (?,'CANCELLED','CANCELLED','CANCELLED','ผู้รับบริการยกเลิกคิวที่ Kiosk ด้วยบัตรประชาชน')")->execute([$row['ticket_id']]);
+            $pdo->exec('COMMIT');audit(null,'KIOSK_CANCEL_QUEUE','queue_ticket',(string)$row['ticket_id'],['queue_no'=>$row['queue_no']]);respond(['ok'=>true]);
+        }catch(Throwable $e){try{$pdo->exec('ROLLBACK');}catch(Throwable){}if($e instanceof DomainException)fail($e->getMessage(),409);throw $e;}
+    }
+
     if ($action === 'kiosk-lookup') {
         requireMethod('POST');$in=jsonInput();$method=(string)($in['method']??'');$value=trim((string)($in['value']??''));
         if($value==='')fail('กรุณาระบุข้อมูลสำหรับค้นหา');
