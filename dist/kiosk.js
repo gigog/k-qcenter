@@ -1,6 +1,7 @@
 'use strict';
 const api='../api/index.php';const $=id=>document.getElementById(id);const urlKioskCode=(new URLSearchParams(location.search).get('kiosk')||'').trim().toUpperCase();const kioskCode=urlKioskCode||(localStorage.getItem('kqcenter_kiosk_template')||'').trim().toUpperCase();let kioskConfig=null,kioskMenu=[],selectedDepartmentId=0,selectedServiceId=0,selectedMenuItemId=0;let stream=null,scanMode='checkin',idleTimer,finishTimer,finishSeconds=60,currentRequestKey='',lastCitizenId='',lastCardName='',latchedCardId='',autoCardBusy=false,issuingTicket=false,pendingOnlineBooking=null;
 const panels=['homePanel','servicePanel','identifyPanel','scanPanel','walkinPanel','ticketPanel'];let lookupMethod='code',lookupPurpose='checkin',scanLookupMethod='code';
+const alternateLookup=document.createElement('button');alternateLookup.type='button';alternateLookup.className='touch-button secondary wide';alternateLookup.textContent='ค้นหาด้วยเบอร์มือถือ / เลขบัตรประชาชน';
 function thaiClock(){const now=new Date();$('clockTime').textContent=new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)+' น.';$('clockDate').textContent=new Intl.DateTimeFormat('th-TH-u-ca-buddhist',{timeZone:'Asia/Bangkok',weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now)}
 thaiClock();setInterval(thaiClock,30000);
 function resetIdle(){clearTimeout(idleTimer);if(!$('homePanel').classList.contains('hidden'))return;idleTimer=setTimeout(()=>show('homePanel'),90000)}
