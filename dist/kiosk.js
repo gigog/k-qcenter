@@ -32,6 +32,8 @@ $('noCardButton').onclick=async()=>{lastCitizenId='';lastCardName='ผู้ร�
 if(!$('scanTokenLabel'))$('scanToken').previousElementSibling.id='scanTokenLabel';
 document.getElementById('onlineCheckinButton').addEventListener('click',()=>{scanLookupMethod='code';scanLookupModes.classList.add('hidden');$('scanToken').value='';$('scanTokenLabel').textContent='รหัสจอง เบอร์มือถือ หรือเลขบัตรประชาชน';$('scanToken').placeholder='กรอกข้อมูลอย่างใดอย่างหนึ่งเพื่อค้นหา'});
 $('scanToken').addEventListener('focus',()=>{$('scanPanel').classList.add('entry-focused');requestAnimationFrame(()=>$('scanForm').scrollIntoView({block:'center',behavior:'smooth'}))});
+$('scanToken').addEventListener('input',()=>$('scanError').classList.add('hidden'));
+document.querySelectorAll('[data-key],[data-reference-key]').forEach(button=>button.addEventListener('click',()=>$('scanError').classList.add('hidden')));
 document.querySelectorAll('[data-open="scanPanel"]').forEach(button=>button.addEventListener('click',()=>setTimeout(()=>$('scanToken').focus({preventScroll:true}),80)));
 $('onlineCheckinButton').addEventListener('click',()=>setTimeout(()=>$('scanToken').focus({preventScroll:true}),80));
 document.querySelectorAll('[data-home]').forEach(button=>button.addEventListener('click',()=>$('scanPanel').classList.remove('entry-focused')));
