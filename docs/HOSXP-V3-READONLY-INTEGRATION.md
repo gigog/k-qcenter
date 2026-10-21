@@ -15,6 +15,7 @@ CREATE USER 'kqcenter_hosxp_ro'@'KQCENTER_SERVER_IP' IDENTIFIED BY 'รหัส
 GRANT SELECT ON hos.patient TO 'kqcenter_hosxp_ro'@'KQCENTER_SERVER_IP';
 GRANT SELECT ON hos.ovst TO 'kqcenter_hosxp_ro'@'KQCENTER_SERVER_IP';
 GRANT SELECT ON hos.kskdepartment TO 'kqcenter_hosxp_ro'@'KQCENTER_SERVER_IP';
+GRANT SELECT ON hos.holiday TO 'kqcenter_hosxp_ro'@'KQCENTER_SERVER_IP';
 FLUSH PRIVILEGES;
 ```
 
