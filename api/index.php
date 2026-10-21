@@ -239,6 +239,16 @@ try {
         audit((int)$user['id'],$isEdit?'UPDATE_CALENDAR':'CREATE_CALENDAR','calendar_override',(string)$id,['date'=>$date,'name'=>$name]);respond(['ok'=>true,'id'=>$id]);
     }
 
+    if ($action === 'sync-hosxp-holidays') {
+        requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$bangkok=new DateTimeZone('Asia/Bangkok');$year=(int)(new DateTimeImmutable('now',$bangkok))->format('Y');
+        $from=(string)($in['from_date']??sprintf('%04d-01-01',$year));$to=(string)($in['to_date']??sprintf('%04d-12-31',$year+1));if(!hosxpEnabled())fail('ยังไม่ได้ตั้งค่าการเชื่อมต่อ HOSxP',409);
+        try{$holidays=hosxpHolidayRows($from,$to);}catch(Throwable $e){error_log('HOSxP holiday sync error: '.$e->getMessage());fail('อ่านตารางวันหยุดจาก HOSxP ไม่สำเร็จ กรุณาตรวจสอบสิทธิ์อ่านตาราง holiday และการเชื่อมต่อ',502);}
+        $branches=$pdo->query('SELECT id FROM branches WHERE active=1 ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);if(!$branches)fail('ยังไม่มีสาขาที่เปิดใช้งานใน K-QCENTER',409);
+        $source='[HOSXP_SYNC]';$created=0;$updated=0;$skipped=0;$find=$pdo->prepare("SELECT id,note FROM schedule_overrides WHERE scope_type='BRANCH' AND scope_id=? AND override_date=?");$insert=$pdo->prepare("INSERT INTO schedule_overrides(scope_type,scope_id,override_date,name,is_closed,open_time,close_time,counter_count,note,active) VALUES ('BRANCH',?,?,?,1,NULL,NULL,NULL,?,1)");$update=$pdo->prepare('UPDATE schedule_overrides SET name=?,is_closed=1,open_time=NULL,close_time=NULL,note=?,active=1,updated_at=CURRENT_TIMESTAMP WHERE id=?');
+        $pdo->beginTransaction();try{foreach($branches as $branchId)foreach($holidays as $holiday){$find->execute([(int)$branchId,$holiday['date']]);$existing=$find->fetch();$note=$source.' ซิงค์จากตาราง holiday ของ HOSxP';if(!$existing){$insert->execute([(int)$branchId,$holiday['date'],$holiday['name'],$note]);$created++;}elseif(str_starts_with((string)($existing['note']??''),$source)){$update->execute([$holiday['name'],$note,(int)$existing['id']]);$updated++;}else{$skipped++;}}$pdo->commit();}catch(Throwable $e){$pdo->rollBack();throw $e;}
+        audit((int)$user['id'],'SYNC_HOSXP_HOLIDAYS','schedule_override','',['from'=>$from,'to'=>$to,'holiday_count'=>count($holidays),'created'=>$created,'updated'=>$updated,'skipped'=>$skipped]);respond(['ok'=>true,'data'=>['from_date'=>$from,'to_date'=>$to,'holiday_count'=>count($holidays),'branch_count'=>count($branches),'created'=>$created,'updated'=>$updated,'skipped'=>$skipped]]);
+    }
+
     if ($action === 'weekly-hours') { requireUser();$type=strtoupper((string)($_GET['scope_type']??''));$id=(int)($_GET['scope_id']??0);$stmt=$pdo->prepare('SELECT * FROM weekly_hours WHERE scope_type=? AND scope_id=? ORDER BY weekday,interval_order');$stmt->execute([$type,$id]);respond(['ok'=>true,'data'=>$stmt->fetchAll()]); }
     if ($action === 'save-weekly-hours') {
         requireMethod('POST');$user=requireAdmin();requireCsrf();$in=jsonInput();$type=strtoupper((string)($in['scope_type']??''));$scopeId=(int)($in['scope_id']??0);$items=$in['intervals']??[];if(!in_array($type,['BRANCH','DEPARTMENT'],true)||$scopeId<1||!is_array($items))fail('ข้อมูลตารางเวลาไม่ถูกต้อง');

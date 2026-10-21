@@ -58,6 +58,19 @@ function hosxpVisitByHn(string $hn,string $date): ?array
     $stmt=hosxpDb()->prepare($sql);$stmt->execute([$hn,$date]);$row=$stmt->fetch();return $row?:null;
 }
 
+function hosxpHolidayRows(string $fromDate,string $toDate): array
+{
+    if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$fromDate)||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$toDate)||$fromDate>$toDate)throw new InvalidArgumentException('ช่วงวันที่ซิงค์วันหยุดไม่ถูกต้อง');
+    $db=hosxpDb();$columns=$db->query('SHOW COLUMNS FROM holiday')->fetchAll();
+    $names=array_map(fn($row)=>strtolower((string)$row['Field']),$columns);
+    $pick=fn(array $candidates)=>array_values(array_intersect($candidates,$names))[0]??null;
+    $dateColumn=$pick(['holiday_date','hdate','holiday','date']);$nameColumn=$pick(['holiday_name','holiday_description','description','name']);
+    if(!$dateColumn)throw new RuntimeException('ตาราง holiday ของ HOSxP ไม่มีคอลัมน์วันที่ที่ระบบรองรับ');
+    $nameSql=$nameColumn?"`$nameColumn`":'NULL';$stmt=$db->prepare("SELECT `$dateColumn` holiday_date,$nameSql holiday_name FROM holiday WHERE `$dateColumn` BETWEEN ? AND ? ORDER BY `$dateColumn`");$stmt->execute([$fromDate,$toDate]);$result=[];
+    foreach($stmt->fetchAll() as $row){$date=substr(trim((string)$row['holiday_date']),0,10);if(!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',$date,$parts))continue;$year=(int)$parts[1];if($year>2400)$date=sprintf('%04d-%s-%s',$year-543,$parts[2],$parts[3]);$name=trim((string)($row['holiday_name']??''));$result[]=['date'=>$date,'name'=>$name!==''?$name:'วันหยุด HOSxP'];}
+    return $result;
+}
+
 function hosxpSaveLink(PDO $pdo,int $ticketId,string $hn,?array $visit,string $syncStatus,?string $error=null): void
 {
     $driver=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);$hnHash=hash_hmac('sha256',$hn,hosxpSecret());$hnCipher=hosxpEncrypt($hn);$vnCipher=$visit?hosxpEncrypt((string)$visit['vn']):null;
