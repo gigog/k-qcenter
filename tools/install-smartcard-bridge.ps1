@@ -14,6 +14,10 @@ $hiddenSource = Join-Path $PSScriptRoot 'smartcard-bridge-hidden.vbs'
 $hiddenTarget = Join-Path $targetDir 'smartcard-bridge-hidden.vbs'
 $watchdogHiddenSource = Join-Path $PSScriptRoot 'smartcard-watchdog-hidden.vbs'
 $watchdogHiddenTarget = Join-Path $targetDir 'smartcard-watchdog-hidden.vbs'
+$kioskLauncherSource = Join-Path $PSScriptRoot 'kiosk-single-instance-launcher.ps1'
+$kioskLauncherTarget = Join-Path $targetDir 'kiosk-single-instance-launcher.ps1'
+$kioskLauncherVbsSource = Join-Path $PSScriptRoot 'kiosk-single-instance-launcher.vbs'
+$kioskLauncherVbsTarget = Join-Path $targetDir 'kiosk-single-instance-launcher.vbs'
 if (Get-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -ErrorAction SilentlyContinue }
 if (Get-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge' -ErrorAction SilentlyContinue) { Stop-ScheduledTask -TaskName 'K-QCENTER Smart Card Bridge' -ErrorAction SilentlyContinue }
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like "*$targetDir*" } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
@@ -26,6 +30,9 @@ Copy-Item -LiteralPath $launcherSource -Destination $launcherTarget -Force
 Copy-Item -LiteralPath $watchdogSource -Destination $watchdogTarget -Force
 Copy-Item -LiteralPath $hiddenSource -Destination $hiddenTarget -Force
 Copy-Item -LiteralPath $watchdogHiddenSource -Destination $watchdogHiddenTarget -Force
+Copy-Item -LiteralPath $kioskLauncherSource -Destination $kioskLauncherTarget -Force
+Copy-Item -LiteralPath $kioskLauncherVbsSource -Destination $kioskLauncherVbsTarget -Force
+[IO.File]::WriteAllText((Join-Path $targetDir 'kiosk-url.txt'), $KioskUrl, [Text.UTF8Encoding]::new($false))
 $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$hiddenTarget`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
@@ -49,11 +56,11 @@ $edgeProfile = Join-Path $targetDir 'EdgeKioskProfile'
 New-Item -ItemType Directory -Path $edgeProfile -Force | Out-Null
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath = $edgePath
-$shortcut.Arguments = "--user-data-dir=`"$edgeProfile`" --kiosk `"$KioskUrl`" --edge-kiosk-type=fullscreen --kiosk-printing --no-first-run --disable-pinch"
-$shortcut.WorkingDirectory = Split-Path -Parent $edgePath
+$shortcut.TargetPath = "$env:WINDIR\System32\wscript.exe"
+$shortcut.Arguments = "`"$kioskLauncherVbsTarget`""
+$shortcut.WorkingDirectory = $targetDir
 $shortcut.IconLocation = "$edgePath,0"
-$shortcut.Description = 'K-QCENTER Kiosk - silent print to the Windows default printer'
+$shortcut.Description = 'K-QCENTER Kiosk - single window and refresh on repeated launch'
 $shortcut.Save()
 
 Write-Output 'K-QCENTER Smart Card and Silent Print Bridge installed and started on 127.0.0.1:17890'
