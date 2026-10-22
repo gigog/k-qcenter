@@ -51,6 +51,8 @@ Smart Card Bridge รุ่น 3 มี Local Print Adapter ที่ `POST /pri
 
 ตัวติดตั้งสร้าง Scheduled Task `K-QCENTER Print Agent` ภายใต้บัญชี Windows ปัจจุบันและเริ่ม Agent ทุกครั้งเมื่อ Login พร้อมตั้งค่าให้ Windows เริ่มใหม่เมื่อโปรเซสหยุดผิดปกติ การถอนติดตั้งใช้ `Uninstall-K-QCENTER-Print-Agent.cmd` ซึ่งหยุดโปรเซส ลบ Scheduled Task และลบเฉพาะโฟลเดอร์ `%LOCALAPPDATA%\K-QCENTER\PrintAgent`
 
+Print Agent ต้องฝังฟอนต์ Sarabun Regular/Bold และโหลดผ่าน `PrivateFontCollection` เพื่อให้ภาษาไทยไม่ขึ้นกับฟอนต์ที่ติดตั้งใน Windows รูปแบบใบคิว Compact ใช้ความสูงกระดาษประมาณครึ่งหนึ่งของรุ่นเดิม โดยคงเลขคิว แผนก ช่วงเวลา วันที่ เลขอ้างอิง และ QR สำหรับติดตามสถานะ
+
 สามารถกำหนด URL จุด Kiosk ตอนติดตั้งได้ เช่น:
 
 ```powershell

@@ -8,24 +8,27 @@ Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
 using System;
 using System.Drawing;
 using System.Drawing.Printing;
+using System.Drawing.Text;
 using System.IO;
 public static class KqDirectPrinter {
   public static string DefaultPrinter() { using (PrintDocument d=new PrintDocument()) return d.PrinterSettings.IsValid?d.PrinterSettings.PrinterName:""; }
   public static void Print(string no,string department,string service,string slot,string date,string reference,string token,string qrUrl) {
     byte[] bytes=Convert.FromBase64String(qrUrl.Substring(qrUrl.IndexOf(',')+1));
-    using(MemoryStream stream=new MemoryStream(bytes)) using(Image qr=Image.FromStream(stream)) using(PrintDocument doc=new PrintDocument()) {
-      if(!doc.PrinterSettings.IsValid) throw new InvalidOperationException("ไม่พบเครื่องพิมพ์ Default ที่พร้อมใช้งาน");
+    string fontDir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"K-QCENTER","PrintAgent");
+    using(PrivateFontCollection fonts=new PrivateFontCollection()) using(MemoryStream stream=new MemoryStream(bytes)) using(Image qr=Image.FromStream(stream)) using(PrintDocument doc=new PrintDocument()) {
+      fonts.AddFontFile(Path.Combine(fontDir,"Sarabun-Regular.ttf")); fonts.AddFontFile(Path.Combine(fontDir,"Sarabun-Bold.ttf")); FontFamily thai=fonts.Families[0];
+      if(!doc.PrinterSettings.IsValid) throw new InvalidOperationException("\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E40\u0E04\u0E23\u0E37\u0E48\u0E2D\u0E07\u0E1E\u0E34\u0E21\u0E1E\u0E4C Default \u0E17\u0E35\u0E48\u0E1E\u0E23\u0E49\u0E2D\u0E21\u0E43\u0E0A\u0E49\u0E07\u0E32\u0E19");
       doc.DocumentName="K-QCENTER "+no; doc.PrintController=new StandardPrintController();
-      doc.DefaultPageSettings.Margins=new Margins(8,8,6,6); doc.DefaultPageSettings.PaperSize=new PaperSize("K-QCENTER 80mm",315,650);
+      doc.DefaultPageSettings.Margins=new Margins(6,6,4,4); doc.DefaultPageSettings.PaperSize=new PaperSize("K-QCENTER Compact 80mm",315,340);
       doc.PrintPage += delegate(object sender,PrintPageEventArgs e) {
         float w=e.MarginBounds.Width,l=e.MarginBounds.Left,y=e.MarginBounds.Top; StringFormat c=new StringFormat{Alignment=StringAlignment.Center};
-        using(Font brand=new Font("Sarabun",11,FontStyle.Bold)) using(Font label=new Font("Sarabun",8)) using(Font num=new Font("Arial",27,FontStyle.Bold)) using(Font title=new Font("Sarabun",13,FontStyle.Bold)) using(Font normal=new Font("Sarabun",9)) using(Font tiny=new Font("Arial",6)) using(Pen dash=new Pen(Color.Gray,1)) {
+        using(Font brand=new Font(thai,9,FontStyle.Bold)) using(Font label=new Font(thai,6.5f)) using(Font num=new Font("Arial",22,FontStyle.Bold)) using(Font title=new Font(thai,10,FontStyle.Bold)) using(Font normal=new Font(thai,7)) using(Pen dash=new Pen(Color.Gray,1)) {
           dash.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;
-          e.Graphics.DrawString("K-QCENTER",brand,Brushes.Black,new RectangleF(l,y,w,24),c);y+=22;e.Graphics.DrawString("บัตรคิวรับบริการ",label,Brushes.Black,new RectangleF(l,y,w,18),c);y+=28;
-          e.Graphics.DrawString("หมายเลขคิว",label,Brushes.Black,new RectangleF(l,y,w,18),c);y+=16;e.Graphics.DrawString(no,num,Brushes.Black,new RectangleF(l,y,w,45),c);y+=51;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=12;
-          e.Graphics.DrawString(department,title,Brushes.Black,new RectangleF(l,y,w,28),c);y+=25;if(!String.IsNullOrWhiteSpace(service)){e.Graphics.DrawString(service,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;}
-          e.Graphics.DrawString(slot,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawString(date,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawString(reference,label,Brushes.Black,new RectangleF(l,y,w,18),c);y+=23;
-          float size=Math.Min(180,w-30);e.Graphics.DrawImage(qr,l+(w-size)/2,y,size,size);y+=size+8;e.Graphics.DrawString("สแกน QR เพื่อติดตามสถานะคิว",normal,Brushes.Black,new RectangleF(l,y,w,22),c);y+=20;e.Graphics.DrawString(token,tiny,Brushes.Black,new RectangleF(l,y,w,18),c);y+=22;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=8;e.Graphics.DrawString("โปรดเก็บบัตรนี้ไว้จนกว่าจะรับบริการเสร็จ",label,Brushes.Black,new RectangleF(l,y,w,22),c);
+          e.Graphics.DrawString("K-QCENTER",brand,Brushes.Black,new RectangleF(l,y,w,17),c);y+=15;e.Graphics.DrawString("\u0E1A\u0E31\u0E15\u0E23\u0E04\u0E34\u0E27\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23",label,Brushes.Black,new RectangleF(l,y,w,14),c);y+=13;
+          e.Graphics.DrawString("\u0E2B\u0E21\u0E32\u0E22\u0E40\u0E25\u0E02\u0E04\u0E34\u0E27",label,Brushes.Black,new RectangleF(l,y,w,13),c);y+=12;e.Graphics.DrawString(no,num,Brushes.Black,new RectangleF(l,y,w,34),c);y+=35;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=6;
+          e.Graphics.DrawString(department,title,Brushes.Black,new RectangleF(l,y,w,21),c);y+=19;if(!String.IsNullOrWhiteSpace(service)){e.Graphics.DrawString(service,normal,Brushes.Black,new RectangleF(l,y,w,15),c);y+=14;}
+          e.Graphics.DrawString(slot,normal,Brushes.Black,new RectangleF(l,y,w,15),c);y+=14;e.Graphics.DrawString(date,normal,Brushes.Black,new RectangleF(l,y,w,15),c);y+=14;e.Graphics.DrawString(reference,label,Brushes.Black,new RectangleF(l,y,w,14),c);y+=15;
+          float size=Math.Min(105,w-50);e.Graphics.DrawImage(qr,l+(w-size)/2,y,size,size);y+=size+4;e.Graphics.DrawString("\u0E2A\u0E41\u0E01\u0E19 QR \u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E15\u0E34\u0E14\u0E15\u0E32\u0E21\u0E2A\u0E16\u0E32\u0E19\u0E30\u0E04\u0E34\u0E27",normal,Brushes.Black,new RectangleF(l,y,w,15),c);y+=14;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=5;e.Graphics.DrawString("\u0E42\u0E1B\u0E23\u0E14\u0E40\u0E01\u0E47\u0E1A\u0E1A\u0E31\u0E15\u0E23\u0E19\u0E35\u0E49\u0E44\u0E27\u0E49\u0E08\u0E19\u0E01\u0E27\u0E48\u0E32\u0E08\u0E30\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23\u0E40\u0E2A\u0E23\u0E47\u0E08",label,Brushes.Black,new RectangleF(l,y,w,14),c);
         } e.HasMorePages=false;
       }; doc.Print();
     }
@@ -52,7 +55,7 @@ try {
             $body=''
             if ($length) { $buffer=New-Object char[] $length; $read=0; while($read -lt $length){$n=$reader.Read($buffer,$read,$length-$read);if($n -le 0){break};$read+=$n};$body=-join $buffer }
             if ($request -match '^OPTIONS /(health|print) ') { Reply $stream 204 '' $origin; continue }
-            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=2;printer_ready=[bool]$printer;default_printer=$printer}|ConvertTo-Json -Compress)) $origin; continue }
+            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=3;printer_ready=[bool]$printer;default_printer=$printer;layout='compact';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
             if ($request -match '^POST /print ') {
                 try {
                     $wrapper=$body|ConvertFrom-Json
