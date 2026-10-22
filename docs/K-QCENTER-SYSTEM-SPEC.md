@@ -106,6 +106,8 @@ K-QOnline, K-QAdmin, K-QCounter และ K-QDisplay ต้องสื่อส
 
 เมื่อผู้รับบริการเลือกช่วงเวลาบน Kiosk และ API ออกคิวสำเร็จ ระบบต้องแสดงบัตรคิวและเรียกการพิมพ์ทันที การกดซ้ำระหว่างออกคิวต้องถูกป้องกัน และการส่งคำขอต้องใช้ idempotency key เพื่อไม่ให้เกิดคิวซ้ำ การพิมพ์แบบไม่มี Preview ต้องส่งข้อมูลใบคิวไปยัง Local Print Adapter ของ Smart Card Bridge ผ่าน loopback และพิมพ์ด้วยเครื่องพิมพ์ Default ของ Windows ห้าม fallback ไป `window.print()` อัตโนมัติเพราะจะเปิด Print Preview
 
+การติดตั้งใหม่ให้แยก `K-QCENTER Print Agent` ที่พอร์ต loopback `17891` ออกจาก Smart Card Bridge ที่พอร์ต `17890` เพื่อให้ Chrome/PWA ใช้งานการพิมพ์ได้โดยไม่ผูกกับเครื่องอ่านบัตร Agent ต้องรับเฉพาะ Origin ที่กำหนด ทำงานโดยไม่มีหน้าต่าง และพิมพ์ไปยัง Default Printer ของ Windows
+
 ลำดับน้ำหนักที่แนะนำ:
 
 | การใช้งาน | น้ำหนัก |

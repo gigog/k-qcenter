@@ -47,6 +47,8 @@ Browser เรียก `POST http://127.0.0.1:17890/read` ไปยัง Bridg
 
 Smart Card Bridge รุ่น 3 มี Local Print Adapter ที่ `POST /print` รับเฉพาะข้อมูลใบคิวจาก Origin ที่อนุญาต แล้วพิมพ์ผ่าน Windows `PrintDocument` และ `StandardPrintController` ไปยังเครื่องพิมพ์ Default โดยตรง จึงไม่เปิด Print Preview และไม่พึ่ง flag ของเบราว์เซอร์ หน้า Kiosk ต้องไม่ fallback ไปใช้ `window.print()` อัตโนมัติ หาก Bridge หรือเครื่องพิมพ์ไม่พร้อมให้แสดงข้อผิดพลาดและอนุญาตให้กดพิมพ์ซ้ำ ตัวติดตั้งยังสร้าง Shortcut `K-QCENTER Kiosk` ด้วย Edge Profile แยกสำหรับการใช้งานเต็มจอ ก่อนใช้งานให้ตั้งเครื่องพิมพ์ความร้อนเป็น Default และปิด `Let Windows manage my default printer`
 
+สำหรับการใช้งานผ่าน Google Chrome ให้ติดตั้ง `K-QCENTER Print Agent` แยกจาก Smart Card Bridge ด้วย `tools/install-kq-print-agent.ps1` Agent ทำงานเบื้องหลังแบบไม่มีหน้าต่างที่ `127.0.0.1:17891` และเริ่มอัตโนมัติเมื่อ Login หน้า Kiosk ติดต่อเฉพาะ `/health` และ `/print` ของ Agent โดยยังคงใช้ Smart Card Bridge ที่พอร์ต `17890` สำหรับอ่านบัตรเท่านั้น
+
 สามารถกำหนด URL จุด Kiosk ตอนติดตั้งได้ เช่น:
 
 ```powershell
