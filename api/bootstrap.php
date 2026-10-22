@@ -388,17 +388,18 @@ function generateSlots(PDO $pdo, string $date): int
             foreach($customConfig['rules'] as $rule){$weekdays=array_map('intval',(array)($rule['weekdays']??[]));$weeks=array_map('intval',(array)($rule['weeks']??[]));if(in_array($weekday,$weekdays,true)&&(!$weeks||in_array($weekOfMonth,$weeks,true))){$customRule=$rule;break;}}
         }
         if($customRule){
-            foreach((array)($customRule['periods']??[]) as $period){$startText=(string)($period['start_time']??'');$endText=(string)($period['end_time']??'');if(!preg_match('/^\d{2}:\d{2}$/',$startText)||!preg_match('/^\d{2}:\d{2}$/',$endText))continue;$start=timeToMinutes($startText);$end=timeToMinutes($endText);$capacity=(int)($period['capacity']??0);foreach($intervals as [$open,$close]){$from=max($start,$open);$to=min($end,$close);if($to>$from&&$capacity>0)$slotDefinitions[]=[$from,$to,$capacity];}}
+            foreach((array)($customRule['periods']??[]) as $period){$startText=(string)($period['start_time']??'');$endText=(string)($period['end_time']??'');if(!preg_match('/^\d{2}:\d{2}$/',$startText)||!preg_match('/^\d{2}:\d{2}$/',$endText))continue;$start=timeToMinutes($startText);$end=timeToMinutes($endText);$customUnlimited=!empty($period['unlimited']);$capacity=$customUnlimited?1:(int)($period['capacity']??0);foreach($intervals as [$open,$close]){$from=max($start,$open);$to=min($end,$close);if($to>$from&&$capacity>0)$slotDefinitions[]=[$from,$to,$capacity,$customUnlimited];}}
         }elseif(!$customEnabled){
             foreach ($intervals as [$startMinute,$endMinute]) {
-              if($configuredMinutes<1){$slotDefinitions[]=[$startMinute,$endMinute,null];continue;}
+              if($configuredMinutes<1){$slotDefinitions[]=[$startMinute,$endMinute,null,false];continue;}
               $slotMinutes=max(15,min(240,$configuredMinutes));
-              for($minute=$startMinute;$minute<$endMinute;$minute+=$slotMinutes)$slotDefinitions[]=[$minute,min($minute+$slotMinutes,$endMinute),null];
+              for($minute=$startMinute;$minute<$endMinute;$minute+=$slotMinutes)$slotDefinitions[]=[$minute,min($minute+$slotMinutes,$endMinute),null,false];
             }
         }
         $slotCount=count($slotDefinitions);if($slotCount<1)continue;$unlimited=(int)($department['unlimited_capacity']??0)===1;$dailyCapacity=(int)($department['daily_capacity']??0);if($dailyCapacity<1)$dailyCapacity=max(1,(int)($service['default_capacity']??1))*$slotCount;$baseCapacity=intdiv($dailyCapacity,$slotCount);$capacityRemainder=$dailyCapacity%$slotCount;
-        foreach ($slotDefinitions as $slotIndex=>[$minute,$slotEndMinute,$customCapacity]) {
+        foreach ($slotDefinitions as $slotIndex=>[$minute,$slotEndMinute,$customCapacity,$customUnlimited]) {
             $capacity = $customCapacity??($baseCapacity+($slotIndex<$capacityRemainder?1:0));
+            $slotUnlimited=$unlimited||$customUnlimited;
             $online = (int)floor($capacity * (int)$department['online_quota_percent'] / 100);
             $walkin = (int)floor($capacity * (int)$department['walkin_quota_percent'] / 100);
             $reserve = max(0, $capacity - $online - $walkin);
@@ -406,7 +407,7 @@ function generateSlots(PDO $pdo, string $date): int
             if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql')$sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,unlimited_capacity,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1) ON DUPLICATE KEY UPDATE end_time=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(end_time),end_time),capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(capacity),capacity),online_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(online_capacity),online_capacity),walkin_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(walkin_capacity),walkin_capacity),reserve_capacity=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(reserve_capacity),reserve_capacity),provider_count=IF($canRefresh=1 AND booked_count=0 AND capacity_locked=0,VALUES(provider_count),provider_count),capacity_mode=VALUES(capacity_mode),unlimited_capacity=VALUES(unlimited_capacity),active=1";
             else $sql="INSERT INTO slots(department_id,service_id,slot_date,start_time,end_time,capacity,online_capacity,walkin_capacity,reserve_capacity,provider_count,capacity_mode,unlimited_capacity,active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1) ON CONFLICT(department_id,service_id,slot_date,start_time) DO UPDATE SET end_time=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.end_time ELSE slots.end_time END,capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.capacity ELSE slots.capacity END,online_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.online_capacity ELSE slots.online_capacity END,walkin_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.walkin_capacity ELSE slots.walkin_capacity END,reserve_capacity=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.reserve_capacity ELSE slots.reserve_capacity END,provider_count=CASE WHEN $canRefresh=1 AND slots.booked_count=0 AND slots.capacity_locked=0 THEN excluded.provider_count ELSE slots.provider_count END,capacity_mode=excluded.capacity_mode,unlimited_capacity=excluded.unlimited_capacity,active=1";
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($slotEndMinute),$capacity,$online,$walkin,$reserve,$counterCount,$unlimited?'UNLIMITED':($customCapacity!==null?'CUSTOM_RULE':'DEPARTMENT_CONFIG'),$unlimited?1:0]);
+            $stmt->execute([$department['id'],$service['id'],$date,minutesToTime($minute),minutesToTime($slotEndMinute),$capacity,$online,$walkin,$reserve,$counterCount,$slotUnlimited?'UNLIMITED':($customCapacity!==null?'CUSTOM_RULE':'DEPARTMENT_CONFIG'),$slotUnlimited?1:0]);
             $created += $stmt->rowCount();
         }
     }

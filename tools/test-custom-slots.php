@@ -15,15 +15,16 @@ $config = ['enabled' => true, 'rules' => [[
     'periods' => [
         ['start_time' => '07:30', 'end_time' => '08:30', 'capacity' => 40],
         ['start_time' => '09:00', 'end_time' => '10:00', 'capacity' => 20],
+        ['start_time' => '10:00', 'end_time' => '11:00', 'capacity' => null, 'unlimited' => true],
     ],
 ]]];
 $pdo->prepare('UPDATE departments SET custom_slot_config=? WHERE id=?')->execute([json_encode($config), $department['id']]);
 
 generateSlots($pdo, '2026-10-09');
-$statement = $pdo->prepare('SELECT start_time,end_time,capacity,capacity_mode FROM slots WHERE slot_date=? AND department_id=? AND active=1 ORDER BY start_time');
+$statement = $pdo->prepare('SELECT start_time,end_time,capacity,capacity_mode,unlimited_capacity FROM slots WHERE slot_date=? AND department_id=? AND active=1 ORDER BY start_time');
 $statement->execute(['2026-10-09', $department['id']]);
 $matching = $statement->fetchAll();
-if (count($matching) !== 2 || (int)$matching[0]['capacity'] !== 40 || (int)$matching[1]['capacity'] !== 20 || $matching[0]['capacity_mode'] !== 'CUSTOM_RULE') throw new RuntimeException('Matching rule did not create the expected slots');
+if (count($matching) !== 3 || (int)$matching[0]['capacity'] !== 40 || (int)$matching[1]['capacity'] !== 20 || $matching[0]['capacity_mode'] !== 'CUSTOM_RULE' || (int)$matching[2]['unlimited_capacity'] !== 1 || $matching[2]['capacity_mode'] !== 'UNLIMITED') throw new RuntimeException('Matching rule did not create the expected slots');
 
 generateSlots($pdo, '2026-10-02');
 $statement->execute(['2026-10-02', $department['id']]);
