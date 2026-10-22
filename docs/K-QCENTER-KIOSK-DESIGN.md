@@ -49,6 +49,8 @@ Smart Card Bridge รุ่น 3 มี Local Print Adapter ที่ `POST /pri
 
 สำหรับการใช้งานผ่าน Google Chrome ให้ติดตั้ง `K-QCENTER Print Agent` แยกจาก Smart Card Bridge ด้วย `tools/install-kq-print-agent.ps1` Agent ทำงานเบื้องหลังแบบไม่มีหน้าต่างที่ `127.0.0.1:17891` และเริ่มอัตโนมัติเมื่อ Login หน้า Kiosk ติดต่อเฉพาะ `/health` และ `/print` ของ Agent โดยยังคงใช้ Smart Card Bridge ที่พอร์ต `17890` สำหรับอ่านบัตรเท่านั้น
 
+ตัวติดตั้งสร้าง Scheduled Task `K-QCENTER Print Agent` ภายใต้บัญชี Windows ปัจจุบันและเริ่ม Agent ทุกครั้งเมื่อ Login พร้อมตั้งค่าให้ Windows เริ่มใหม่เมื่อโปรเซสหยุดผิดปกติ การถอนติดตั้งใช้ `Uninstall-K-QCENTER-Print-Agent.cmd` ซึ่งหยุดโปรเซส ลบ Scheduled Task และลบเฉพาะโฟลเดอร์ `%LOCALAPPDATA%\K-QCENTER\PrintAgent`
+
 สามารถกำหนด URL จุด Kiosk ตอนติดตั้งได้ เช่น:
 
 ```powershell

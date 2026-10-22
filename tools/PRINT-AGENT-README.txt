@@ -12,3 +12,12 @@ K-QCENTER Print Agent
 curl.exe -H "Origin: https://web-lab.tail53909d.ts.net:8443" http://127.0.0.1:17891/health
 
 Agent ทำงานเบื้องหลังโดยไม่มีหน้าต่าง และเริ่มอัตโนมัติเมื่อเข้าสู่ระบบ Windows
+
+การเริ่มอัตโนมัติ
+- ตัวติดตั้งสร้าง Scheduled Task ชื่อ K-QCENTER Print Agent
+- Agent เริ่มเองทุกครั้งเมื่อผู้ใช้บัญชีที่ติดตั้งเข้าสู่ Windows
+- หาก Agent หยุดผิดปกติ Windows จะพยายามเริ่มใหม่อัตโนมัติ
+
+วิธีถอนการติดตั้ง
+1. ดับเบิลคลิก Uninstall-K-QCENTER-Print-Agent.cmd
+2. ระบบจะหยุด Agent ลบ Scheduled Task และลบไฟล์ใน Local AppData
