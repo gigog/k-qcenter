@@ -22,11 +22,12 @@ public static class KqDirectPrinter {
       doc.DefaultPageSettings.Margins=new Margins(0,0,2,2); doc.DefaultPageSettings.PaperSize=new PaperSize("K-QCENTER Compact 80mm",315,370);
       doc.PrintPage += delegate(object sender,PrintPageEventArgs e) {
         float w=e.MarginBounds.Width,l=e.MarginBounds.Left,y=e.MarginBounds.Top; StringFormat c=new StringFormat{Alignment=StringAlignment.Center};
-        using(Font brand=new Font(thai,11,FontStyle.Bold)) using(Font label=new Font(thai,8.5f)) using(Font num=new Font("Arial",30,FontStyle.Bold)) using(Font title=new Font(thai,14,FontStyle.Bold)) using(Font normal=new Font(thai,10)) using(Font serviceFont=new Font(thai,11,FontStyle.Bold)) using(Pen dash=new Pen(Color.Gray,1)) {
+        bool repeatedService=String.Equals((service??"").Trim(),(department??"").Trim(),StringComparison.OrdinalIgnoreCase)||((department??"").Contains("\u0E43\u0E1A\u0E23\u0E31\u0E1A\u0E23\u0E2D\u0E07\u0E41\u0E1E\u0E17\u0E22\u0E4C")&&(service??"").Contains("\u0E43\u0E1A\u0E23\u0E31\u0E1A\u0E23\u0E2D\u0E07\u0E41\u0E1E\u0E17\u0E22\u0E4C"));
+        using(Font brand=new Font(thai,13,FontStyle.Bold)) using(Font label=new Font(thai,8.5f)) using(Font num=new Font("Arial",30,FontStyle.Bold)) using(Font title=new Font(thai,14,FontStyle.Bold)) using(Font normal=new Font(thai,10)) using(Font serviceFont=new Font(thai,11,FontStyle.Bold)) using(Pen dash=new Pen(Color.Gray,1)) {
           dash.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;
-          e.Graphics.DrawString("K-QCENTER",brand,Brushes.Black,new RectangleF(l,y,w,21),c);y+=19;e.Graphics.DrawString("\u0E1A\u0E31\u0E15\u0E23\u0E04\u0E34\u0E27\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23",label,Brushes.Black,new RectangleF(l,y,w,17),c);y+=16;
-          e.Graphics.DrawString("\u0E2B\u0E21\u0E32\u0E22\u0E40\u0E25\u0E02\u0E04\u0E34\u0E27",label,Brushes.Black,new RectangleF(l,y,w,17),c);y+=15;e.Graphics.DrawString(no,num,Brushes.Black,new RectangleF(l,y,w,44),c);y+=44;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=7;
-          e.Graphics.DrawString(department,title,Brushes.Black,new RectangleF(l,y,w,29),c);y+=27;if(!String.IsNullOrWhiteSpace(service)){e.Graphics.DrawString(service,serviceFont,Brushes.Black,new RectangleF(l,y,w,23),c);y+=21;}
+          e.Graphics.DrawString("K-QCENTER",brand,Brushes.Black,new RectangleF(l,y,w,25),c);y+=23;e.Graphics.DrawString("\u0E1A\u0E31\u0E15\u0E23\u0E04\u0E34\u0E27\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23\u0E2B\u0E49\u0E2D\u0E07\u0E1A\u0E31\u0E15\u0E23",label,Brushes.Black,new RectangleF(l,y,w,17),c);y+=17;
+          e.Graphics.DrawString(no,num,Brushes.Black,new RectangleF(l,y,w,44),c);y+=44;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=7;
+          e.Graphics.DrawString(department,title,Brushes.Black,new RectangleF(l,y,w,29),c);y+=27;if(!String.IsNullOrWhiteSpace(service)&&!repeatedService){e.Graphics.DrawString(service,serviceFont,Brushes.Black,new RectangleF(l,y,w,23),c);y+=21;}
           e.Graphics.DrawString(slot,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawString(date,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawString(reference,label,Brushes.Black,new RectangleF(l,y,w,17),c);y+=18;
           float size=Math.Min(112,w-30);e.Graphics.DrawImage(qr,l+(w-size)/2,y,size,size);y+=size+5;e.Graphics.DrawString("\u0E2A\u0E41\u0E01\u0E19 QR \u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E15\u0E34\u0E14\u0E15\u0E32\u0E21\u0E2A\u0E16\u0E32\u0E19\u0E30\u0E04\u0E34\u0E27",normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=5;e.Graphics.DrawString("\u0E42\u0E1B\u0E23\u0E14\u0E40\u0E01\u0E47\u0E1A\u0E1A\u0E31\u0E15\u0E23\u0E19\u0E35\u0E49\u0E44\u0E27\u0E49\u0E08\u0E19\u0E01\u0E27\u0E48\u0E32\u0E08\u0E30\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23\u0E40\u0E2A\u0E23\u0E47\u0E08",label,Brushes.Black,new RectangleF(l,y,w,18),c);
         } e.HasMorePages=false;
@@ -55,7 +56,7 @@ try {
             $body=''
             if ($length) { $buffer=New-Object char[] $length; $read=0; while($read -lt $length){$n=$reader.Read($buffer,$read,$length-$read);if($n -le 0){break};$read+=$n};$body=-join $buffer }
             if ($request -match '^OPTIONS /(health|print) ') { Reply $stream 204 '' $origin; continue }
-            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=4;printer_ready=[bool]$printer;default_printer=$printer;layout='compact-wide';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
+            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=5;printer_ready=[bool]$printer;default_printer=$printer;layout='compact-wide';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
             if ($request -match '^POST /print ') {
                 try {
                     $wrapper=$body|ConvertFrom-Json
