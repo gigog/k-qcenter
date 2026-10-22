@@ -12,24 +12,24 @@ using System.Drawing.Text;
 using System.IO;
 public static class KqDirectPrinter {
   public static string DefaultPrinter() { using (PrintDocument d=new PrintDocument()) return d.PrinterSettings.IsValid?d.PrinterSettings.PrinterName:""; }
-  public static void Print(string no,string department,string service,string slot,string date,string reference,string token,string qrUrl) {
+  public static void Print(string no,string department,string service,string slot,string date,string reference,string token,string qrUrl,string systemName,string headerText,string qrCaption,string footerText,bool showService,bool showSlot,bool showDate,bool showReference,bool showQr,bool showQrCaption,bool hideDuplicateService,int paperHeight,int qrSize,float brandSize,float queueSize,float departmentSize,float serviceSize,float detailSize) {
     byte[] bytes=Convert.FromBase64String(qrUrl.Substring(qrUrl.IndexOf(',')+1));
     string fontDir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"K-QCENTER","PrintAgent");
     using(PrivateFontCollection fonts=new PrivateFontCollection()) using(MemoryStream stream=new MemoryStream(bytes)) using(Image qr=Image.FromStream(stream)) using(PrintDocument doc=new PrintDocument()) {
       fonts.AddFontFile(Path.Combine(fontDir,"Sarabun-Regular.ttf")); fonts.AddFontFile(Path.Combine(fontDir,"Sarabun-Bold.ttf")); FontFamily thai=fonts.Families[0];
       if(!doc.PrinterSettings.IsValid) throw new InvalidOperationException("\u0E44\u0E21\u0E48\u0E1E\u0E1A\u0E40\u0E04\u0E23\u0E37\u0E48\u0E2D\u0E07\u0E1E\u0E34\u0E21\u0E1E\u0E4C Default \u0E17\u0E35\u0E48\u0E1E\u0E23\u0E49\u0E2D\u0E21\u0E43\u0E0A\u0E49\u0E07\u0E32\u0E19");
       doc.DocumentName="K-QCENTER "+no; doc.PrintController=new StandardPrintController();
-      doc.DefaultPageSettings.Margins=new Margins(0,0,2,2); doc.DefaultPageSettings.PaperSize=new PaperSize("K-QCENTER Compact 80mm",315,370);
+      doc.DefaultPageSettings.Margins=new Margins(0,0,2,2); doc.DefaultPageSettings.PaperSize=new PaperSize("K-QCENTER Custom 80mm",315,Math.Max(260,Math.Min(700,paperHeight)));
       doc.PrintPage += delegate(object sender,PrintPageEventArgs e) {
         float w=e.MarginBounds.Width,l=e.MarginBounds.Left,y=e.MarginBounds.Top; StringFormat c=new StringFormat{Alignment=StringAlignment.Center};
         bool repeatedService=String.Equals((service??"").Trim(),(department??"").Trim(),StringComparison.OrdinalIgnoreCase)||((department??"").Contains("\u0E43\u0E1A\u0E23\u0E31\u0E1A\u0E23\u0E2D\u0E07\u0E41\u0E1E\u0E17\u0E22\u0E4C")&&(service??"").Contains("\u0E43\u0E1A\u0E23\u0E31\u0E1A\u0E23\u0E2D\u0E07\u0E41\u0E1E\u0E17\u0E22\u0E4C"));
-        using(Font brand=new Font(thai,13,FontStyle.Bold)) using(Font label=new Font(thai,8.5f)) using(Font num=new Font("Arial",30,FontStyle.Bold)) using(Font title=new Font(thai,14,FontStyle.Bold)) using(Font normal=new Font(thai,10)) using(Font serviceFont=new Font(thai,11,FontStyle.Bold)) using(Pen dash=new Pen(Color.Gray,1)) {
+        using(Font brand=new Font(thai,brandSize,FontStyle.Bold)) using(Font label=new Font(thai,Math.Max(7,detailSize-1))) using(Font num=new Font("Arial",queueSize,FontStyle.Bold)) using(Font title=new Font(thai,departmentSize,FontStyle.Bold)) using(Font normal=new Font(thai,detailSize)) using(Font serviceFont=new Font(thai,serviceSize,FontStyle.Bold)) using(Pen dash=new Pen(Color.Gray,1)) {
           dash.DashStyle=System.Drawing.Drawing2D.DashStyle.Dash;
-          e.Graphics.DrawString("K-QCENTER",brand,Brushes.Black,new RectangleF(l,y,w,25),c);y+=23;e.Graphics.DrawString("\u0E1A\u0E31\u0E15\u0E23\u0E04\u0E34\u0E27\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23\u0E2B\u0E49\u0E2D\u0E07\u0E1A\u0E31\u0E15\u0E23",label,Brushes.Black,new RectangleF(l,y,w,17),c);y+=17;
+          e.Graphics.DrawString(systemName,brand,Brushes.Black,new RectangleF(l,y,w,30),c);y+=27;if(!String.IsNullOrWhiteSpace(headerText)){e.Graphics.DrawString(headerText,label,Brushes.Black,new RectangleF(l,y,w,22),c);y+=20;}
           e.Graphics.DrawString(no,num,Brushes.Black,new RectangleF(l,y,w,44),c);y+=44;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=7;
-          e.Graphics.DrawString(department,title,Brushes.Black,new RectangleF(l,y,w,29),c);y+=27;if(!String.IsNullOrWhiteSpace(service)&&!repeatedService){e.Graphics.DrawString(service,serviceFont,Brushes.Black,new RectangleF(l,y,w,23),c);y+=21;}
-          e.Graphics.DrawString(slot,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawString(date,normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawString(reference,label,Brushes.Black,new RectangleF(l,y,w,17),c);y+=18;
-          float size=Math.Min(112,w-30);e.Graphics.DrawImage(qr,l+(w-size)/2,y,size,size);y+=size+5;e.Graphics.DrawString("\u0E2A\u0E41\u0E01\u0E19 QR \u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E15\u0E34\u0E14\u0E15\u0E32\u0E21\u0E2A\u0E16\u0E32\u0E19\u0E30\u0E04\u0E34\u0E27",normal,Brushes.Black,new RectangleF(l,y,w,20),c);y+=19;e.Graphics.DrawLine(dash,l,y,l+w,y);y+=5;e.Graphics.DrawString("\u0E42\u0E1B\u0E23\u0E14\u0E40\u0E01\u0E47\u0E1A\u0E1A\u0E31\u0E15\u0E23\u0E19\u0E35\u0E49\u0E44\u0E27\u0E49\u0E08\u0E19\u0E01\u0E27\u0E48\u0E32\u0E08\u0E30\u0E23\u0E31\u0E1A\u0E1A\u0E23\u0E34\u0E01\u0E32\u0E23\u0E40\u0E2A\u0E23\u0E47\u0E08",label,Brushes.Black,new RectangleF(l,y,w,18),c);
+          e.Graphics.DrawString(department,title,Brushes.Black,new RectangleF(l,y,w,32),c);y+=30;if(showService&&!String.IsNullOrWhiteSpace(service)&&(!hideDuplicateService||!repeatedService)){e.Graphics.DrawString(service,serviceFont,Brushes.Black,new RectangleF(l,y,w,26),c);y+=24;}
+          if(showSlot){e.Graphics.DrawString(slot,normal,Brushes.Black,new RectangleF(l,y,w,22),c);y+=21;}if(showDate){e.Graphics.DrawString(date,normal,Brushes.Black,new RectangleF(l,y,w,22),c);y+=21;}if(showReference){e.Graphics.DrawString(reference,label,Brushes.Black,new RectangleF(l,y,w,20),c);y+=21;}
+          if(showQr){float size=Math.Min(qrSize,w-20);e.Graphics.DrawImage(qr,l+(w-size)/2,y,size,size);y+=size+5;if(showQrCaption&&!String.IsNullOrWhiteSpace(qrCaption)){e.Graphics.DrawString(qrCaption,normal,Brushes.Black,new RectangleF(l,y,w,22),c);y+=21;}}e.Graphics.DrawLine(dash,l,y,l+w,y);y+=5;if(!String.IsNullOrWhiteSpace(footerText))e.Graphics.DrawString(footerText,label,Brushes.Black,new RectangleF(l,y,w,28),c);
         } e.HasMorePages=false;
       }; doc.Print();
     }
@@ -56,7 +56,7 @@ try {
             $body=''
             if ($length) { $buffer=New-Object char[] $length; $read=0; while($read -lt $length){$n=$reader.Read($buffer,$read,$length-$read);if($n -le 0){break};$read+=$n};$body=-join $buffer }
             if ($request -match '^OPTIONS /(health|print) ') { Reply $stream 204 '' $origin; continue }
-            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=5;printer_ready=[bool]$printer;default_printer=$printer;layout='compact-wide';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
+            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=6;printer_ready=[bool]$printer;default_printer=$printer;layout='customizable';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
             if ($request -match '^POST /print ') {
                 try {
                     $wrapper=$body|ConvertFrom-Json
@@ -65,7 +65,8 @@ try {
                     $ticket=$json|ConvertFrom-Json
                     if (-not $ticket.queue_no -or $ticket.qr_data_url -notmatch '^data:image/(png|gif);base64,') { throw 'ข้อมูลบัตรคิวไม่ถูกต้อง' }
                     $printer=[KqDirectPrinter]::DefaultPrinter()
-                    [KqDirectPrinter]::Print([string]$ticket.queue_no,[string]$ticket.department,[string]$ticket.service,[string]$ticket.slot,[string]$ticket.date,[string]$ticket.reference,[string]$ticket.token,[string]$ticket.qr_data_url)
+                    $t=$ticket.template;if(-not $t){$t=[pscustomobject]@{system_name='K-QCENTER';header_text='บัตรคิวรับบริการห้องบัตร';qr_caption='สแกน QR เพื่อติดตามสถานะคิว';footer_text='โปรดเก็บบัตรนี้ไว้จนกว่าจะรับบริการเสร็จ';show_service=$true;show_slot=$true;show_date=$true;show_reference=$true;show_qr=$true;show_qr_caption=$true;hide_duplicate_service=$true;paper_height=370;qr_size=112;brand_font_size=13;queue_font_size=30;department_font_size=14;service_font_size=11;detail_font_size=10}}
+                    [KqDirectPrinter]::Print([string]$ticket.queue_no,[string]$ticket.department,[string]$ticket.service,[string]$ticket.slot,[string]$ticket.date,[string]$ticket.reference,[string]$ticket.token,[string]$ticket.qr_data_url,[string]$t.system_name,[string]$t.header_text,[string]$t.qr_caption,[string]$t.footer_text,[bool]$t.show_service,[bool]$t.show_slot,[bool]$t.show_date,[bool]$t.show_reference,[bool]$t.show_qr,[bool]$t.show_qr_caption,[bool]$t.hide_duplicate_service,[int]$t.paper_height,[int]$t.qr_size,[float]$t.brand_font_size,[float]$t.queue_font_size,[float]$t.department_font_size,[float]$t.service_font_size,[float]$t.detail_font_size)
                     Reply $stream 200 ((@{ok=$true;printed=$true;printer=$printer}|ConvertTo-Json -Compress)) $origin
                 } catch { Reply $stream 400 ((@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress)) $origin }
                 continue

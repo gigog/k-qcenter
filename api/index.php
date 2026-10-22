@@ -10,6 +10,19 @@ try {
         respond(['ok'=>true,'service'=>'K-QCENTER API','database'=>'connected','time'=>(new DateTimeImmutable('now', new DateTimeZone('Asia/Bangkok')))->format(DATE_ATOM)]);
     }
 
+    if ($action === 'public-ticket-template') {
+        respond(['ok'=>true,'data'=>ticketTemplate($pdo)]);
+    }
+
+    if ($action === 'ticket-template-settings') {
+        $user=requireAdmin();
+        if($_SERVER['REQUEST_METHOD']==='GET')respond(['ok'=>true,'data'=>ticketTemplate($pdo),'defaults'=>ticketTemplateDefaults()]);
+        requireMethod('POST');requireCsrf();$template=cleanTicketTemplate(jsonInput());$json=json_encode($template,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'){$stmt=$pdo->prepare("INSERT INTO system_settings(setting_key,setting_value,updated_by) VALUES ('ticket_template',?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by),updated_at=CURRENT_TIMESTAMP");}
+        else{$stmt=$pdo->prepare("INSERT INTO system_settings(setting_key,setting_value,updated_by) VALUES ('ticket_template',?,?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP");}
+        $stmt->execute([$json,(int)$user['id']]);audit((int)$user['id'],'UPDATE_TICKET_TEMPLATE','system_setting','ticket_template',$template);respond(['ok'=>true,'data'=>$template]);
+    }
+
     if ($action === 'setup-status') {
         respond(['ok'=>true,'needs_setup'=>(int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0]);
     }

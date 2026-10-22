@@ -251,6 +251,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   ip_address TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS system_settings (
+  setting_key TEXT PRIMARY KEY,
+  setting_value TEXT NOT NULL,
+  updated_by INTEGER REFERENCES users(id),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE INDEX IF NOT EXISTS idx_slots_date ON slots(slot_date, department_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_date ON calendar_overrides(override_date, branch_id);
 CREATE INDEX IF NOT EXISTS idx_weekly_scope ON weekly_hours(scope_type, scope_id, weekday);
@@ -339,6 +345,36 @@ function ensureUniqueIndex(PDO $pdo,string $table,string $index,string $column):
     $stmt=$pdo->prepare('SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND index_name=?');
     $stmt->execute([$table,$index]);
     if(!$stmt->fetchColumn())$pdo->exec("ALTER TABLE `$table` ADD UNIQUE KEY `$index` (`$column`)");
+}
+
+function ticketTemplateDefaults(): array
+{
+    return [
+        'system_name'=>'K-QCENTER','header_text'=>'บัตรคิวรับบริการห้องบัตร',
+        'show_service'=>true,'show_slot'=>true,'show_date'=>true,'show_reference'=>true,
+        'show_qr'=>true,'show_qr_caption'=>true,'hide_duplicate_service'=>true,
+        'qr_caption'=>'สแกน QR เพื่อติดตามสถานะคิว',
+        'footer_text'=>'โปรดเก็บบัตรนี้ไว้จนกว่าจะรับบริการเสร็จ',
+        'paper_height'=>370,'qr_size'=>112,'brand_font_size'=>13,'queue_font_size'=>30,
+        'department_font_size'=>14,'service_font_size'=>11,'detail_font_size'=>10,
+    ];
+}
+
+function cleanTicketTemplate(array $input): array
+{
+    $defaults=ticketTemplateDefaults();$out=$defaults;
+    $limits=['system_name'=>[1,40],'header_text'=>[0,100],'qr_caption'=>[0,100],'footer_text'=>[0,140]];
+    foreach($limits as $key=>[$min,$max]){$value=trim((string)($input[$key]??$defaults[$key]));if(mb_strlen($value)<$min||mb_strlen($value)>$max)fail('ข้อความบนบัตรคิวมีความยาวไม่ถูกต้อง');$out[$key]=$value;}
+    foreach(['show_service','show_slot','show_date','show_reference','show_qr','show_qr_caption','hide_duplicate_service'] as $key)$out[$key]=filter_var($input[$key]??$defaults[$key],FILTER_VALIDATE_BOOL);
+    $ranges=['paper_height'=>[260,700],'qr_size'=>[70,160],'brand_font_size'=>[9,22],'queue_font_size'=>[20,48],'department_font_size'=>[9,24],'service_font_size'=>[8,20],'detail_font_size'=>[7,16]];
+    foreach($ranges as $key=>[$min,$max]){$value=(int)($input[$key]??$defaults[$key]);if($value<$min||$value>$max)fail('ขนาดองค์ประกอบบัตรคิวไม่ถูกต้อง');$out[$key]=$value;}
+    return $out;
+}
+
+function ticketTemplate(PDO $pdo): array
+{
+    $stmt=$pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key='ticket_template'");$stmt->execute();$json=$stmt->fetchColumn();
+    if(!$json)return ticketTemplateDefaults();$decoded=json_decode((string)$json,true);return is_array($decoded)?cleanTicketTemplate($decoded):ticketTemplateDefaults();
 }
 
 function seed(PDO $pdo): void
