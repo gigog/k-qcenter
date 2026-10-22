@@ -12,8 +12,8 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $
 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'kq-print-agent.ps1') -Destination $agentTarget -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'kq-print-agent-hidden.vbs') -Destination $hiddenTarget -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Sarabun-Regular.ttf') -Destination (Join-Path $targetDir 'Sarabun-Regular.ttf') -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Sarabun-Bold.ttf') -Destination (Join-Path $targetDir 'Sarabun-Bold.ttf') -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'fonts\Sarabun-Regular.ttf') -Destination (Join-Path $targetDir 'Sarabun-Regular.ttf') -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'fonts\Sarabun-Bold.ttf') -Destination (Join-Path $targetDir 'Sarabun-Bold.ttf') -Force
 
 $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$hiddenTarget`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
@@ -23,7 +23,7 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Pr
 Start-Process -FilePath 'wscript.exe' -ArgumentList "`"$hiddenTarget`"" -WindowStyle Hidden
 Start-Sleep -Seconds 2
 $health = Invoke-RestMethod -Uri 'http://127.0.0.1:17891/health' -Headers @{ Origin='https://web-lab.tail53909d.ts.net:8443' } -TimeoutSec 5
-if (-not $health.ok -or [int]$health.agent_version -lt 6) { throw 'Print Agent เริ่มทำงานไม่สำเร็จหรือเป็นรุ่นเก่า' }
+if (-not $health.ok -or [int]$health.agent_version -lt 7) { throw 'Print Agent เริ่มทำงานไม่สำเร็จหรือเป็นรุ่นเก่า' }
 if (-not $health.printer_ready) { throw 'ติดตั้ง Agent แล้ว แต่ Windows ยังไม่มี Default Printer ที่พร้อมใช้งาน' }
 Write-Output 'K-QCENTER Print Agent installed on 127.0.0.1:17891'
 Write-Output "Default printer: $($health.default_printer)"
