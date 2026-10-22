@@ -33,5 +33,40 @@ public static class KqDirectPrinter {
 }
 '@
 function Reply($stream,[int]$status,[string]$body,[string]$origin){$bytes=[Text.Encoding]::UTF8.GetBytes($body);$text=if($status-eq 200){'OK'}elseif($status-eq 204){'No Content'}elseif($status-eq 403){'Forbidden'}else{'Bad Request'};$headers="HTTP/1.1 $status $text`r`nContent-Type: application/json; charset=utf-8`r`nContent-Length: $($bytes.Length)`r`nAccess-Control-Allow-Origin: $origin`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nAccess-Control-Allow-Private-Network: true`r`nVary: Origin, Access-Control-Request-Private-Network`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n";$h=[Text.Encoding]::ASCII.GetBytes($headers);$stream.Write($h,0,$h.Length);if($bytes.Length){$stream.Write($bytes,0,$bytes.Length)};$stream.Flush()}
-$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$Port);$listener.Start()
-try{while($true){$client=$listener.AcceptTcpClient();try{$stream=$client.GetStream();$reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$false,4096,$true);$request=$reader.ReadLine();$headers=@{};while(($line=$reader.ReadLine())-ne''){$pair=$line.Split(':',2);if($pair.Count-eq 2){$headers[$pair[0].Trim().ToLowerInvariant()]=$pair[1].Trim()}};$origin=[string]$headers['origin'];if($origin-notin$AllowedOrigins){Reply $stream 403 '{"ok":false,"error":"Origin ไม่ได้รับอนุญาต"}' 'null';continue};[int]$length=0;if($headers['content-length']){[int]::TryParse($headers['content-length'],[ref]$length)|Out-Null};if($length-lt 0-or$length-gt 262144){Reply $stream 400 '{"ok":false,"error":"ข้อมูลมีขนาดไม่ถูกต้อง"}' $origin;continue};$body='';if($length){$buffer=New-Object char[] $length;$read=0;while($read-lt$length){$n=$reader.Read($buffer,$read,$length-$read);if($n-le 0){break};$read+=$n};$body=-join$buffer};if($request-match'^OPTIONS /(health|print) '){Reply $stream 204 '' $origin;continue};if($request-match'^GET /health '){$printer=[KqDirectPrinter]::DefaultPrinter();Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=1;printer_ready=[bool]$printer;default_printer=$printer}|ConvertTo-Json -Compress)) $origin;continue};if($request-match'^POST /print '){try{$t=$body|ConvertFrom-Json;if(-not$t.queue_no-or$t.qr_data_url-notmatch'^data:image/(png|gif);base64,'){throw'ข้อมูลบัตรคิวไม่ถูกต้อง'};[KqDirectPrinter]::Print([string]$t.queue_no,[string]$t.department,[string]$t.service,[string]$t.slot,[string]$t.date,[string]$t.reference,[string]$t.token,[string]$t.qr_data_url);Reply $stream 200 '{"ok":true,"printed":true}' $origin}catch{Reply $stream 400 ((@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress)) $origin};continue};Reply $stream 400 '{"ok":false,"error":"Endpoint ไม่ถูกต้อง"}' $origin}finally{$client.Dispose()}}}finally{$listener.Stop()}
+$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$Port)
+$listener.Start()
+try {
+    while ($true) {
+        $client=$listener.AcceptTcpClient()
+        try {
+            $stream=$client.GetStream()
+            $reader=[IO.StreamReader]::new($stream,[Text.Encoding]::UTF8,$false,4096,$true)
+            $request=$reader.ReadLine()
+            $headers=@{}
+            while (($line=$reader.ReadLine()) -ne '') { $pair=$line.Split(':',2); if($pair.Count -eq 2){$headers[$pair[0].Trim().ToLowerInvariant()]=$pair[1].Trim()} }
+            $origin=[string]$headers['origin']
+            if ($origin -notin $AllowedOrigins) { Reply $stream 403 '{"ok":false,"error":"Origin ไม่ได้รับอนุญาต"}' 'null'; continue }
+            [int]$length=0
+            if ($headers['content-length']) { [int]::TryParse($headers['content-length'],[ref]$length)|Out-Null }
+            if ($length -lt 0 -or $length -gt 262144) { Reply $stream 400 '{"ok":false,"error":"ข้อมูลมีขนาดไม่ถูกต้อง"}' $origin; continue }
+            $body=''
+            if ($length) { $buffer=New-Object char[] $length; $read=0; while($read -lt $length){$n=$reader.Read($buffer,$read,$length-$read);if($n -le 0){break};$read+=$n};$body=-join $buffer }
+            if ($request -match '^OPTIONS /(health|print) ') { Reply $stream 204 '' $origin; continue }
+            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=2;printer_ready=[bool]$printer;default_printer=$printer}|ConvertTo-Json -Compress)) $origin; continue }
+            if ($request -match '^POST /print ') {
+                try {
+                    $wrapper=$body|ConvertFrom-Json
+                    if (-not $wrapper.payload_base64) { throw 'ไม่พบ payload สำหรับพิมพ์' }
+                    $json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$wrapper.payload_base64))
+                    $ticket=$json|ConvertFrom-Json
+                    if (-not $ticket.queue_no -or $ticket.qr_data_url -notmatch '^data:image/(png|gif);base64,') { throw 'ข้อมูลบัตรคิวไม่ถูกต้อง' }
+                    $printer=[KqDirectPrinter]::DefaultPrinter()
+                    [KqDirectPrinter]::Print([string]$ticket.queue_no,[string]$ticket.department,[string]$ticket.service,[string]$ticket.slot,[string]$ticket.date,[string]$ticket.reference,[string]$ticket.token,[string]$ticket.qr_data_url)
+                    Reply $stream 200 ((@{ok=$true;printed=$true;printer=$printer}|ConvertTo-Json -Compress)) $origin
+                } catch { Reply $stream 400 ((@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress)) $origin }
+                continue
+            }
+            Reply $stream 400 '{"ok":false,"error":"Endpoint ไม่ถูกต้อง"}' $origin
+        } finally { $client.Dispose() }
+    }
+} finally { $listener.Stop() }

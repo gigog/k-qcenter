@@ -20,5 +20,9 @@ $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCo
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'K-QCENTER silent printing service on 127.0.0.1:17891' -Force | Out-Null
 Start-Process -FilePath 'wscript.exe' -ArgumentList "`"$hiddenTarget`"" -WindowStyle Hidden
 Start-Sleep -Seconds 2
+$health = Invoke-RestMethod -Uri 'http://127.0.0.1:17891/health' -Headers @{ Origin='https://web-lab.tail53909d.ts.net:8443' } -TimeoutSec 5
+if (-not $health.ok -or [int]$health.agent_version -lt 2) { throw 'Print Agent เริ่มทำงานไม่สำเร็จหรือเป็นรุ่นเก่า' }
+if (-not $health.printer_ready) { throw 'ติดตั้ง Agent แล้ว แต่ Windows ยังไม่มี Default Printer ที่พร้อมใช้งาน' }
 Write-Output 'K-QCENTER Print Agent installed on 127.0.0.1:17891'
+Write-Output "Default printer: $($health.default_printer)"
 Write-Output 'Printing uses the Windows default printer without browser preview.'
