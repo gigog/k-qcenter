@@ -6,6 +6,10 @@ if (PHP_SAPI !== 'cli' || ($argv[1] ?? '') !== '--confirm-all-queue-data') {
 }
 require __DIR__ . '/../api/bootstrap.php';
 $pdo=db();
+if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') {
+    fwrite(STDERR, "Refusing reset: production MariaDB connection is not active.\n");
+    exit(3);
+}
 $tables=['hosxp_visit_links','queue_events','queue_tickets','bookings'];
 $before=[];
 foreach($tables as $table)$before[$table]=(int)$pdo->query("SELECT COUNT(*) FROM $table")->fetchColumn();
