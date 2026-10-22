@@ -159,7 +159,7 @@ try {
         requireMethod('POST'); $user=requireAdmin(); requireCsrf(); $in=jsonInput();
         $id=(int)($in['id']??0);$isEdit=$id>0;$branchId=(int)($in['branch_id']??0);$code=strtoupper(trim((string)($in['code']??'')));$name=trim((string)($in['name']??''));
         $counters=(int)($in['counter_count']??1);$efficiency=(float)($in['efficiency']??.8);$online=(int)($in['online_quota_percent']??70);$walkin=(int)($in['walkin_quota_percent']??20);$reserve=(int)($in['reserve_quota_percent']??10);$unlimited=!empty($in['unlimited_capacity'])?1:0;$dailyCapacity=$unlimited?null:(trim((string)($in['daily_capacity']??''))===''?null:(int)$in['daily_capacity']);$slotMinutes=trim((string)($in['slot_minutes']??''))===''?null:(int)$in['slot_minutes'];$active=!empty($in['active'])?1:0;
-        if($branchId<1||!preg_match('/^[A-Z0-9_-]{2,20}$/',$code)||mb_strlen($name)<2)fail('ข้อมูลแผนกไม่ครบถ้วน');
+        if($branchId<1||!preg_match('/^[A-Z0-9]{1,4}$/',$code)||mb_strlen($name)<2)fail('รหัสแผนกต้องเป็นอักษรอังกฤษหรือตัวเลข 1–4 ตัว');
         if($counters<1||$counters>100||$efficiency<.1||$efficiency>1)fail('จำนวนช่องหรือประสิทธิภาพไม่ถูกต้อง');
         if($dailyCapacity!==null&&($dailyCapacity<1||$dailyCapacity>10000))fail('จำนวนรับต่อวันต้องอยู่ระหว่าง 1–10,000 คน');
         if($slotMinutes!==null&&($slotMinutes<15||$slotMinutes>240))fail('ระยะเวลา Slot ต้องอยู่ระหว่าง 15–240 นาที');

@@ -694,10 +694,10 @@ function createQueueTicket(PDO $pdo, array $booking, ?string $configuredPrefix=n
 {
     $existing=$pdo->prepare('SELECT * FROM queue_tickets WHERE booking_id=?');$existing->execute([$booking['id']]);
     if($ticket=$existing->fetch())return queueTicketDetail($pdo,(int)$ticket['id']);
-    $slot=$pdo->prepare('SELECT department_id,slot_date FROM slots WHERE id=?');$slot->execute([$booking['slot_id']]);$slotRow=$slot->fetch();$departmentId=(int)($slotRow['department_id']??0);
+    $slot=$pdo->prepare('SELECT s.department_id,s.slot_date,d.code department_code FROM slots s JOIN departments d ON d.id=s.department_id WHERE s.id=?');$slot->execute([$booking['slot_id']]);$slotRow=$slot->fetch();$departmentId=(int)($slotRow['department_id']??0);
     if($departmentId<1)throw new DomainException('ไม่พบแผนกของรายการนี้');
     if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'){$departmentLock=$pdo->prepare('SELECT id FROM departments WHERE id=? FOR UPDATE');$departmentLock->execute([$departmentId]);}
-    $publicId=newPublicId();$queueNo=nextQueueNo($pdo,$departmentId,(string)$slotRow['slot_date'],$configuredPrefix);
+    $publicId=newPublicId();$queueNo=nextQueueNo($pdo,$departmentId,(string)$slotRow['slot_date'],(string)$slotRow['department_code']);
     $waiting=$pdo->prepare("SELECT COUNT(*) FROM queue_tickets q JOIN bookings b ON b.id=q.booking_id JOIN slots s ON s.id=b.slot_id WHERE s.department_id=? AND q.status IN ('WAITING','CALLED')");$waiting->execute([$departmentId]);
     $estimated=(int)$waiting->fetchColumn()*10;
     $stmt=$pdo->prepare("INSERT INTO queue_tickets(public_id,booking_id,queue_no,source,status,current_step,checked_in_at,estimated_wait_minutes) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,?)");
