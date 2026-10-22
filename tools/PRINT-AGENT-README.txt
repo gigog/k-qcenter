@@ -12,7 +12,7 @@ K-QCENTER Print Agent
 curl.exe -H "Origin: https://web-lab.tail53909d.ts.net:8443" http://127.0.0.1:17891/health
 
 Agent ทำงานเบื้องหลังโดยไม่มีหน้าต่าง และเริ่มอัตโนมัติเมื่อเข้าสู่ระบบ Windows
-ใบคิวใช้ฟอนต์ Sarabun ที่ฝังมากับ Agent และรูปแบบ Compact เพื่อลดความยาวกระดาษประมาณครึ่งหนึ่ง
+ใบคิวใช้ฟอนต์ Sarabun ที่ฝังมากับ Agent รูปแบบ Compact Wide ตัวอักษรขนาดใหญ่ จัดกึ่งกลาง และใช้พื้นที่เต็มความกว้างที่เครื่องพิมพ์รองรับ
 
 การเริ่มอัตโนมัติ
 - ตัวติดตั้งสร้าง Scheduled Task ชื่อ K-QCENTER Print Agent
