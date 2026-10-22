@@ -1,0 +1,24 @@
+.calendar-data-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.calendar-data-table th,
+.calendar-data-table td {
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.calendar-data-table th:nth-child(1),
+.calendar-data-table td:nth-child(1) { min-width: 132px; }
+.calendar-data-table th:nth-child(2),
+.calendar-data-table td:nth-child(2) { min-width: 180px; }
+.calendar-data-table th:nth-child(3),
+.calendar-data-table td:nth-child(3) { min-width: 150px; }
+.calendar-data-table th:nth-child(4),
+.calendar-data-table td:nth-child(4) { min-width: 115px; }
+.calendar-data-table th:nth-child(5),
+.calendar-data-table td:nth-child(5) { min-width: 320px; }
+.calendar-data-table th:nth-child(6),
+.calendar-data-table td:nth-child(6) { min-width: 105px; }
