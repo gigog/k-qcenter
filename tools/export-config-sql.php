@@ -24,7 +24,7 @@ if (!is_file($databasePath)) {
 $referenced = [
     'buildings' => ['id','code','name','is_24_hours','open_time','close_time','active','created_at','updated_at'],
     'branches' => ['id','building_id','code','name','open_time','close_time','closing_buffer_minutes','active','created_at','updated_at'],
-    'departments' => ['id','branch_id','code','name','counter_count','efficiency','online_quota_percent','walkin_quota_percent','reserve_quota_percent','daily_capacity','slot_minutes','active'],
+    'departments' => ['id','branch_id','code','name','counter_count','efficiency','online_quota_percent','walkin_quota_percent','reserve_quota_percent','daily_capacity','unlimited_capacity','slot_minutes','custom_slot_config','active'],
     'services' => ['id','department_id','code','name','average_minutes','preparation_minutes','slot_minutes','default_capacity','active'],
     'kiosk_templates' => ['id','building_id','code','name','location_label','active','created_at','updated_at'],
 ];
@@ -86,7 +86,7 @@ $out[] = '';
 $out[] = '-- Preflight: schema must be deployed and no business code may belong to a different id.';
 $out[] = 'DELIMITER //';
 $checks = [];
-foreach ([['departments','daily_capacity'],['departments','slot_minutes'],['services','default_capacity'],['kiosk_menu_items','schedule_json']] as [$table, $column]) {
+foreach ([['departments','daily_capacity'],['departments','slot_minutes'],['departments','custom_slot_config'],['services','default_capacity'],['kiosk_menu_items','schedule_json']] as [$table, $column]) {
     $checks[] = "  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='{$table}' AND column_name='{$column}') THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Schema is outdated: deploy the latest code and open the API once before syncing'; END IF;";
 }
 foreach ($uniqueKeys as $table => $keys) {

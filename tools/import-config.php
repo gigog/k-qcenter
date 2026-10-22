@@ -22,7 +22,7 @@ if (($payload['format'] ?? '') !== 'k-qcenter-config-v1' || !is_array($payload['
 $tables = [
     'buildings' => ['id','code','name','is_24_hours','open_time','close_time','active','created_at','updated_at'],
     'branches' => ['id','building_id','code','name','open_time','close_time','closing_buffer_minutes','active','created_at','updated_at'],
-    'departments' => ['id','branch_id','code','name','counter_count','efficiency','online_quota_percent','walkin_quota_percent','reserve_quota_percent','daily_capacity','slot_minutes','active'],
+    'departments' => ['id','branch_id','code','name','counter_count','efficiency','online_quota_percent','walkin_quota_percent','reserve_quota_percent','daily_capacity','unlimited_capacity','slot_minutes','custom_slot_config','active'],
     'services' => ['id','department_id','code','name','average_minutes','preparation_minutes','slot_minutes','default_capacity','active'],
     'kiosk_templates' => ['id','building_id','code','name','location_label','active','created_at','updated_at'],
     'kiosk_menu_items' => ['id','template_id','parent_id','department_id','service_id','label','subtitle','icon','sort_order','start_time','end_time','schedule_json','active','created_at','updated_at'],
@@ -59,6 +59,7 @@ if (!in_array('default_capacity', $serviceColumns, true)) $pdo->exec('ALTER TABL
 $departmentColumns = array_column($pdo->query('PRAGMA table_info(departments)')->fetchAll(PDO::FETCH_ASSOC), 'name');
 if (!in_array('daily_capacity', $departmentColumns, true)) $pdo->exec('ALTER TABLE departments ADD COLUMN daily_capacity INTEGER');
 if (!in_array('slot_minutes', $departmentColumns, true)) $pdo->exec('ALTER TABLE departments ADD COLUMN slot_minutes INTEGER');
+if (!in_array('custom_slot_config', $departmentColumns, true)) $pdo->exec('ALTER TABLE departments ADD COLUMN custom_slot_config TEXT');
 $pdo->beginTransaction();
 
 try {

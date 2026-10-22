@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS departments (
   efficiency DECIMAL(5,4) NOT NULL DEFAULT 0.8000, online_quota_percent INT UNSIGNED NOT NULL DEFAULT 70,
   walkin_quota_percent INT UNSIGNED NOT NULL DEFAULT 20, reserve_quota_percent INT UNSIGNED NOT NULL DEFAULT 10,
   daily_capacity INT UNSIGNED NULL, unlimited_capacity TINYINT(1) NOT NULL DEFAULT 0, slot_minutes INT UNSIGNED NULL,
+  custom_slot_config LONGTEXT NULL,
   active TINYINT(1) NOT NULL DEFAULT 1, UNIQUE KEY uq_department_code(branch_id,code),
   CONSTRAINT fk_departments_branch FOREIGN KEY(branch_id) REFERENCES branches(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
