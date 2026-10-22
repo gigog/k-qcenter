@@ -1,3 +1,7 @@
+param(
+    [string]$KioskUrl = 'https://web-lab.tail53909d.ts.net:8443/dist/kiosk.html'
+)
+
 $ErrorActionPreference = 'Stop'
 $source = Join-Path $PSScriptRoot 'smartcard-bridge.ps1'
 $targetDir = Join-Path $env:LOCALAPPDATA 'K-QCENTER\SmartCardBridge'
@@ -32,4 +36,24 @@ $watchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -
 $watchdogSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName 'K-QCENTER Smart Card Watchdog' -Action $watchdogAction -Trigger $watchdogTrigger -Principal $principal -Settings $watchdogSettings -Force | Out-Null
 Start-Process -FilePath 'wscript.exe' -ArgumentList "`"$hiddenTarget`"" -WindowStyle Hidden
+
+$edgeCandidates = @(
+    (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+    (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe')
+) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+if (-not $edgeCandidates) { throw 'ไม่พบ Microsoft Edge กรุณาติดตั้ง Edge ก่อนสร้าง K-QCENTER Kiosk Launcher' }
+$edgePath = $edgeCandidates[0]
+$desktop = [Environment]::GetFolderPath('Desktop')
+$shortcutPath = Join-Path $desktop 'K-QCENTER Kiosk.lnk'
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $edgePath
+$shortcut.Arguments = "--kiosk `"$KioskUrl`" --edge-kiosk-type=fullscreen --kiosk-printing --no-first-run --disable-pinch"
+$shortcut.WorkingDirectory = Split-Path -Parent $edgePath
+$shortcut.IconLocation = "$edgePath,0"
+$shortcut.Description = 'K-QCENTER Kiosk - silent print to the Windows default printer'
+$shortcut.Save()
+
 Write-Output 'K-QCENTER Smart Card Bridge installed and started on 127.0.0.1:17890'
+Write-Output "K-QCENTER Kiosk shortcut created: $shortcutPath"
+Write-Output 'Silent printing uses the Windows default printer. Open Kiosk from this shortcut.'
