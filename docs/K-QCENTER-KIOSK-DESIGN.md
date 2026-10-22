@@ -45,7 +45,7 @@ Browser เรียก `POST http://127.0.0.1:17890/read` ไปยัง Bridg
 
 ติดตั้ง Bridge บน Windows ด้วย `tools/install-smartcard-bridge.ps1` ระบบจะคัดลอกโปรแกรมไปยัง Local AppData และสร้าง Scheduled Task ชื่อ `K-QCENTER Smart Card Bridge` ให้เริ่มเมื่อผู้ใช้เข้าสู่ระบบ
 
-ตัวติดตั้งเดียวกันจะสร้าง Shortcut `K-QCENTER Kiosk` บน Desktop เพื่อเปิด Microsoft Edge ด้วย `--kiosk-printing` และ `--user-data-dir` ที่แยกจาก Edge/PWA ปกติ การแยก Profile ป้องกัน Edge ส่งหน้าไปยังโปรเซสเดิมแล้วละทิ้ง flag Silent Print การพิมพ์จึงส่งไปยังเครื่องพิมพ์ Default ของ Windows ทันทีโดยไม่แสดง Print Preview ต้องปิดหน้าตู้เดิมและเปิดผ่าน Shortcut นี้เท่านั้น การเปิดจาก PWA หรือเบราว์เซอร์ปกติยังแสดง Preview ตามข้อกำหนดความปลอดภัยของเบราว์เซอร์ ก่อนใช้งานให้ตั้งเครื่องพิมพ์ความร้อนเป็น Default และปิด `Let Windows manage my default printer` เพื่อป้องกัน Windows เปลี่ยนเครื่องพิมพ์เอง
+Smart Card Bridge รุ่น 3 มี Local Print Adapter ที่ `POST /print` รับเฉพาะข้อมูลใบคิวจาก Origin ที่อนุญาต แล้วพิมพ์ผ่าน Windows `PrintDocument` และ `StandardPrintController` ไปยังเครื่องพิมพ์ Default โดยตรง จึงไม่เปิด Print Preview และไม่พึ่ง flag ของเบราว์เซอร์ หน้า Kiosk ต้องไม่ fallback ไปใช้ `window.print()` อัตโนมัติ หาก Bridge หรือเครื่องพิมพ์ไม่พร้อมให้แสดงข้อผิดพลาดและอนุญาตให้กดพิมพ์ซ้ำ ตัวติดตั้งยังสร้าง Shortcut `K-QCENTER Kiosk` ด้วย Edge Profile แยกสำหรับการใช้งานเต็มจอ ก่อนใช้งานให้ตั้งเครื่องพิมพ์ความร้อนเป็น Default และปิด `Let Windows manage my default printer`
 
 สามารถกำหนด URL จุด Kiosk ตอนติดตั้งได้ เช่น:
 

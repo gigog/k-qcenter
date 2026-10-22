@@ -35,6 +35,62 @@ public static class WinSCard {
 }
 '@
 
+Add-Type -AssemblyName System.Drawing
+Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
+using System;
+using System.Drawing;
+using System.Drawing.Printing;
+using System.IO;
+
+public static class KqTicketPrinter {
+    public static void Print(string queueNo, string department, string service, string slot, string date, string reference, string token, string qrDataUrl) {
+        byte[] qrBytes = Convert.FromBase64String(qrDataUrl.Substring(qrDataUrl.IndexOf(',') + 1));
+        using (MemoryStream qrStream = new MemoryStream(qrBytes))
+        using (Image qr = Image.FromStream(qrStream))
+        using (PrintDocument document = new PrintDocument()) {
+            document.DocumentName = "K-QCENTER " + queueNo;
+            document.PrintController = new StandardPrintController();
+            document.DefaultPageSettings.Margins = new Margins(8, 8, 6, 6);
+            document.DefaultPageSettings.PaperSize = new PaperSize("K-QCENTER 80mm", 315, 650);
+            document.PrintPage += delegate(object sender, PrintPageEventArgs e) {
+                float width = e.MarginBounds.Width;
+                float left = e.MarginBounds.Left;
+                float y = e.MarginBounds.Top;
+                StringFormat center = new StringFormat { Alignment = StringAlignment.Center };
+                using (Font brand = new Font("Sarabun", 11, FontStyle.Bold))
+                using (Font label = new Font("Sarabun", 8, FontStyle.Regular))
+                using (Font number = new Font("Arial", 27, FontStyle.Bold))
+                using (Font title = new Font("Sarabun", 13, FontStyle.Bold))
+                using (Font normal = new Font("Sarabun", 9, FontStyle.Regular))
+                using (Font tokenFont = new Font("Arial", 6, FontStyle.Regular))
+                using (Pen dashed = new Pen(Color.Gray, 1)) {
+                    dashed.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+                    e.Graphics.DrawString("K-QCENTER", brand, Brushes.Black, new RectangleF(left, y, width, 24), center); y += 22;
+                    e.Graphics.DrawString("บัตรคิวรับบริการ", label, Brushes.Black, new RectangleF(left, y, width, 18), center); y += 28;
+                    e.Graphics.DrawString("หมายเลขคิว", label, Brushes.Black, new RectangleF(left, y, width, 18), center); y += 16;
+                    e.Graphics.DrawString(queueNo, number, Brushes.Black, new RectangleF(left, y, width, 45), center); y += 51;
+                    e.Graphics.DrawLine(dashed, left, y, left + width, y); y += 12;
+                    e.Graphics.DrawString(department, title, Brushes.Black, new RectangleF(left, y, width, 28), center); y += 25;
+                    if (!String.IsNullOrWhiteSpace(service)) { e.Graphics.DrawString(service, normal, Brushes.Black, new RectangleF(left, y, width, 20), center); y += 19; }
+                    e.Graphics.DrawString(slot, normal, Brushes.Black, new RectangleF(left, y, width, 20), center); y += 19;
+                    e.Graphics.DrawString(date, normal, Brushes.Black, new RectangleF(left, y, width, 20), center); y += 19;
+                    e.Graphics.DrawString(reference, label, Brushes.Black, new RectangleF(left, y, width, 18), center); y += 23;
+                    float qrSize = Math.Min(180, width - 30);
+                    e.Graphics.DrawImage(qr, left + (width - qrSize) / 2, y, qrSize, qrSize); y += qrSize + 8;
+                    e.Graphics.DrawString("สแกน QR เพื่อติดตามสถานะคิว", normal, Brushes.Black, new RectangleF(left, y, width, 22), center); y += 20;
+                    e.Graphics.DrawString(token, tokenFont, Brushes.Black, new RectangleF(left, y, width, 18), center); y += 22;
+                    e.Graphics.DrawLine(dashed, left, y, left + width, y); y += 8;
+                    e.Graphics.DrawString("โปรดเก็บบัตรนี้ไว้จนกว่าจะรับบริการเสร็จ", label, Brushes.Black, new RectangleF(left, y, width, 22), center);
+                }
+                e.HasMorePages = false;
+            };
+            if (!document.PrinterSettings.IsValid) throw new InvalidOperationException("ไม่พบเครื่องพิมพ์ Default ที่พร้อมใช้งาน");
+            document.Print();
+        }
+    }
+}
+'@
+
 function Assert-SCardResult([int]$Code, [string]$Operation) {
     if ($Code -ne 0) { throw "$Operation ล้มเหลว (0x$($Code.ToString('X8')))" }
 }
@@ -129,11 +185,12 @@ try {
             while (($line = $reader.ReadLine()) -ne '') { $pair=$line.Split(':',2); if($pair.Count -eq 2){$headers[$pair[0].Trim().ToLowerInvariant()]=$pair[1].Trim()} }
             [int]$contentLength = 0
             if ($headers.ContainsKey('content-length')) {
-                if (-not [int]::TryParse([string]$headers['content-length'], [ref]$contentLength) -or $contentLength -lt 0 -or $contentLength -gt 4096) {
+                if (-not [int]::TryParse([string]$headers['content-length'], [ref]$contentLength) -or $contentLength -lt 0 -or $contentLength -gt 262144) {
                     Write-HttpResponse $stream 400 '{"ok":false,"error":"Request body ไม่ถูกต้องหรือมีขนาดใหญ่เกินไป"}' 'null'
                     continue
                 }
             }
+            $bodyText = ''
             if ($contentLength -gt 0) {
                 $bodyBuffer = New-Object char[] $contentLength
                 $bodyRead = 0
@@ -146,13 +203,14 @@ try {
                     Write-HttpResponse $stream 400 '{"ok":false,"error":"Request body ไม่สมบูรณ์"}' 'null'
                     continue
                 }
+                $bodyText = -join $bodyBuffer
             }
             $origin = [string]$headers['origin']
             if ($origin -notin $AllowedOrigins) { Write-HttpResponse $stream 403 '{"ok":false,"error":"Origin ไม่ได้รับอนุญาต"}' 'null'; continue }
-            if ($requestLine -match '^OPTIONS /(read|health|restart) ') { Write-HttpResponse $stream 204 '' $origin; continue }
+            if ($requestLine -match '^OPTIONS /(read|health|restart|print) ') { Write-HttpResponse $stream 204 '' $origin; continue }
             if ($requestLine -match '^GET /health ') {
                 $health = Get-SmartCardReaderHealth
-                $healthBody = @{ ok=$true; service='K-QCENTER Smart Card Bridge'; bridge_version=2; reader_connected=[bool]$health.connected; reader=$health.reader; error_code=$health.error_code } | ConvertTo-Json -Compress
+                $healthBody = @{ ok=$true; service='K-QCENTER Smart Card Bridge'; bridge_version=3; silent_print=$true; reader_connected=[bool]$health.connected; reader=$health.reader; error_code=$health.error_code } | ConvertTo-Json -Compress
                 Write-HttpResponse $stream 200 $healthBody $origin
                 continue
             }
@@ -162,6 +220,15 @@ try {
                 if ($testContext -ne [IntPtr]::Zero) { [void][WinSCard]::SCardReleaseContext($testContext) }
                 if ($testResult -ne 0) { Write-HttpResponse $stream 400 '{"ok":false,"error":"Smart Card Resource Manager ไม่ตอบสนอง"}' $origin; continue }
                 Write-HttpResponse $stream 200 '{"ok":true,"restarted":true}' $origin
+                continue
+            }
+            if ($requestLine -match '^POST /print ') {
+                try {
+                    $ticket = $bodyText | ConvertFrom-Json
+                    if (-not $ticket.queue_no -or -not $ticket.qr_data_url -or $ticket.qr_data_url -notmatch '^data:image/(png|gif);base64,') { throw 'ข้อมูลบัตรคิวไม่ถูกต้อง' }
+                    [KqTicketPrinter]::Print([string]$ticket.queue_no,[string]$ticket.department,[string]$ticket.service,[string]$ticket.slot,[string]$ticket.date,[string]$ticket.reference,[string]$ticket.token,[string]$ticket.qr_data_url)
+                    Write-HttpResponse $stream 200 '{"ok":true,"printed":true}' $origin
+                } catch { Write-HttpResponse $stream 400 ((@{ok=$false;error=$_.Exception.Message}|ConvertTo-Json -Compress)) $origin }
                 continue
             }
             if ($requestLine -notmatch '^POST /read ') { Write-HttpResponse $stream 400 '{"ok":false,"error":"Endpoint ไม่ถูกต้อง"}' $origin; continue }

@@ -56,6 +56,6 @@ $shortcut.IconLocation = "$edgePath,0"
 $shortcut.Description = 'K-QCENTER Kiosk - silent print to the Windows default printer'
 $shortcut.Save()
 
-Write-Output 'K-QCENTER Smart Card Bridge installed and started on 127.0.0.1:17890'
+Write-Output 'K-QCENTER Smart Card and Silent Print Bridge installed and started on 127.0.0.1:17890'
 Write-Output "K-QCENTER Kiosk shortcut created: $shortcutPath"
 Write-Output 'Silent printing uses the Windows default printer and a dedicated Edge profile. Close the old PWA/browser window and open Kiosk from this shortcut.'
