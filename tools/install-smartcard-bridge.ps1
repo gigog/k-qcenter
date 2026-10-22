@@ -45,10 +45,12 @@ if (-not $edgeCandidates) { throw 'ไม่พบ Microsoft Edge กรุณ�
 $edgePath = $edgeCandidates[0]
 $desktop = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktop 'K-QCENTER Kiosk.lnk'
+$edgeProfile = Join-Path $targetDir 'EdgeKioskProfile'
+New-Item -ItemType Directory -Path $edgeProfile -Force | Out-Null
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $edgePath
-$shortcut.Arguments = "--kiosk `"$KioskUrl`" --edge-kiosk-type=fullscreen --kiosk-printing --no-first-run --disable-pinch"
+$shortcut.Arguments = "--user-data-dir=`"$edgeProfile`" --kiosk `"$KioskUrl`" --edge-kiosk-type=fullscreen --kiosk-printing --no-first-run --disable-pinch"
 $shortcut.WorkingDirectory = Split-Path -Parent $edgePath
 $shortcut.IconLocation = "$edgePath,0"
 $shortcut.Description = 'K-QCENTER Kiosk - silent print to the Windows default printer'
@@ -56,4 +58,4 @@ $shortcut.Save()
 
 Write-Output 'K-QCENTER Smart Card Bridge installed and started on 127.0.0.1:17890'
 Write-Output "K-QCENTER Kiosk shortcut created: $shortcutPath"
-Write-Output 'Silent printing uses the Windows default printer. Open Kiosk from this shortcut.'
+Write-Output 'Silent printing uses the Windows default printer and a dedicated Edge profile. Close the old PWA/browser window and open Kiosk from this shortcut.'
