@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="K-QCENTER Monitor ห้องบัตร">
+  <rect width="512" height="512" rx="112" fill="#0b6664"/>
+  <rect x="64" y="72" width="384" height="316" rx="54" fill="#f4fffc"/>
+  <rect x="64" y="72" width="384" height="82" rx="54" fill="#19b79f"/>
+  <rect x="64" y="126" width="384" height="28" fill="#19b79f"/>
+  <circle cx="120" cy="113" r="14" fill="#d7fff4"/>
+  <circle cx="164" cy="113" r="14" fill="#d7fff4" opacity=".75"/>
+  <circle cx="208" cy="113" r="14" fill="#d7fff4" opacity=".5"/>
+  <rect x="111" y="194" width="290" height="112" rx="30" fill="#dff7f1"/>
+  <text x="256" y="275" fill="#0b6664" font-family="Arial, sans-serif" font-size="92" font-weight="700" text-anchor="middle">Q</text>
+  <rect x="192" y="388" width="128" height="34" rx="17" fill="#f4fffc"/>
+  <circle cx="178" cy="346" r="17" fill="#38d58d"/>
+  <circle cx="256" cy="346" r="17" fill="#38d58d"/>
+  <circle cx="334" cy="346" r="17" fill="#38d58d"/>
+</svg>
