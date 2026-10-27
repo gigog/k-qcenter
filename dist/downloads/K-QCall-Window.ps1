@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 
 $appUrl = 'https://web-lab.tail53909d.ts.net:8443/dist/?registration_app=1'
 $appDir = Join-Path $env:LOCALAPPDATA 'K-QCall'
