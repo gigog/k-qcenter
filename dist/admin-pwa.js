@@ -1,6 +1,8 @@
 'use strict';
 let adminInstallPrompt=null;
 const adminInstallButton=document.getElementById('installAdminApp');
+const adminRegistrationMode=new URLSearchParams(location.search).get('registration_app')==='1';
+if(adminRegistrationMode)adminInstallButton.textContent='ติดตั้ง Monitor ห้องบัตร';
 const adminIsIos=/iphone|ipad|ipod/i.test(navigator.userAgent);const adminIsStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 function updateAdminNetwork(){let banner=document.getElementById('adminOffline');if(navigator.onLine){banner?.remove();return}if(!banner){banner=document.createElement('div');banner.id='adminOffline';banner.className='admin-offline';banner.setAttribute('role','status');banner.textContent='K-QCENTER ต้องเชื่อมต่อเครือข่ายเพื่อเข้าสู่ระบบและจัดการคิว';document.body.appendChild(banner)}}
 window.addEventListener('online',updateAdminNetwork);window.addEventListener('offline',updateAdminNetwork);updateAdminNetwork();

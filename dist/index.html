@@ -10,12 +10,13 @@
   <meta name="apple-mobile-web-app-title" content="K-QCENTER">
   <title>K-QCENTER — ศูนย์บริหารจัดการคิว</title>
   <link rel="manifest" href="admin-manifest.webmanifest">
+  <script>if(new URLSearchParams(location.search).get('registration_app')==='1')document.querySelector('link[rel="manifest"]').href='registration-monitor.webmanifest';</script>
   <link rel="icon" href="icons/admin-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/admin-icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=44">
+  <link rel="stylesheet" href="styles.css?v=45">
   <link rel="stylesheet" href="auth.css">
   <link rel="stylesheet" href="admin-crud.css?v=45">
   <link rel="stylesheet" href="admin-kiosk.css"><link rel="stylesheet" href="admin-kiosk-weeks.css?v=2">
@@ -184,7 +185,7 @@
   <script src="thai-date.js"></script>
   <script src="app.js?v=18"></script>
   <link rel="stylesheet" href="admin-ticket-template.css?v=3"><link rel="stylesheet" href="admin-calendar.css?v=1"><link rel="stylesheet" href="admin-features.css?v=1">
-  <script src="queue-voice.js?v=15"></script><script src="admin-ticket-template.js?v=5"></script><script src="admin-features.js?v=1"></script><script src="auth.js?v=21"></script>
+  <script src="queue-voice.js?v=15"></script><script src="admin-ticket-template.js?v=5"></script><script src="admin-features.js?v=1"></script><script src="auth.js?v=22"></script>
   <script src="admin-crud.js?v=9"></script>
   <script src="admin-kiosk.js?v=4"></script>
   <script src="admin-users.js"></script>
