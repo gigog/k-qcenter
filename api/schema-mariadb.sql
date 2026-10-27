@@ -116,7 +116,8 @@ CREATE TABLE IF NOT EXISTS queue_tickets (
   status VARCHAR(30) NOT NULL DEFAULT 'WAITING', current_step VARCHAR(50) NOT NULL DEFAULT 'REGISTRATION_WAITING',
   checked_in_at DATETIME NOT NULL, first_called_at DATETIME NULL, registration_started_at DATETIME NULL,
   visit_opened_at DATETIME NULL, service_started_at DATETIME NULL, service_completed_at DATETIME NULL,
-  estimated_wait_minutes INT UNSIGNED NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  estimated_wait_minutes INT UNSIGNED NULL, counter_no TINYINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_queue_status(status,created_at),
   CONSTRAINT fk_queue_booking FOREIGN KEY(booking_id) REFERENCES bookings(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

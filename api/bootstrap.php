@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS queue_tickets (
   service_started_at TEXT,
   service_completed_at TEXT,
   estimated_wait_minutes INTEGER,
+  counter_no INTEGER,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -285,6 +286,7 @@ SQL);
     ensureColumn($pdo, 'departments', 'slot_minutes', 'INTEGER');
     ensureColumn($pdo, 'departments', 'custom_slot_config', 'TEXT');
     ensureColumn($pdo, 'slots', 'unlimited_capacity', 'INTEGER NOT NULL DEFAULT 0');
+    ensureColumn($pdo, 'queue_tickets', 'counter_no', 'INTEGER');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -317,6 +319,7 @@ function migrateMariaDb(PDO $pdo): void
     ensureColumn($pdo, 'departments', 'slot_minutes', 'INT UNSIGNED NULL');
     ensureColumn($pdo, 'departments', 'custom_slot_config', 'LONGTEXT NULL');
     ensureColumn($pdo, 'slots', 'unlimited_capacity', 'TINYINT(1) NOT NULL DEFAULT 0');
+    ensureColumn($pdo, 'queue_tickets', 'counter_no', 'TINYINT UNSIGNED NULL');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
