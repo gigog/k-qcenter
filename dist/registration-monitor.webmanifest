@@ -1,8 +1,8 @@
 {
-  "id": "k-qcenter-registration-monitor",
-  "name": "K-QCENTER Monitor ห้องบัตร",
-  "short_name": "ห้องบัตร",
-  "description": "แอปเรียกคิวและติดตามสถานะห้องบัตรสำหรับ 3 เคาน์เตอร์",
+  "id": "k-qcall",
+  "name": "K-QCall",
+  "short_name": "K-QCall",
+  "description": "แอปเรียกคิวประจำจุดบริการและช่องบริการของ K-QCENTER",
   "lang": "th",
   "start_url": "./?registration_app=1",
   "scope": "./",
