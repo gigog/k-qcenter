@@ -446,8 +446,6 @@ function generateSlots(PDO $pdo, string $date): int
             $serviceStmt->execute([$department['id']]);$service=$serviceStmt->fetch();
             if(!$service)continue;
         }
-        [$intervals,$counterOverride] = effectiveIntervals($pdo,$department,$date);
-        $counterCount = $counterOverride ?: (int)$department['counter_count'];
         $slotDefinitions=[];$configuredMinutes=(int)($department['slot_minutes']??0);$customRule=null;$customEnabled=false;
         $customConfig=json_decode((string)($department['custom_slot_config']??''),true);
         if(is_array($customConfig)&&!empty($customConfig['enabled'])&&is_array($customConfig['rules']??null)){
@@ -455,6 +453,10 @@ function generateSlots(PDO $pdo, string $date): int
             $dateObject=new DateTimeImmutable($date,new DateTimeZone('Asia/Bangkok'));$weekday=(int)$dateObject->format('N');$weekOfMonth=(int)ceil((int)$dateObject->format('j')/7);
             foreach($customConfig['rules'] as $rule){$weekdays=array_map('intval',(array)($rule['weekdays']??[]));$weeks=array_map('intval',(array)($rule['weeks']??[]));if(in_array($weekday,$weekdays,true)&&(!$weeks||in_array($weekOfMonth,$weeks,true))){$customRule=$rule;break;}}
         }
+        // เมื่อเปิดใช้กฎ Slot ให้วันและเวลาจากกฎเป็นแหล่งข้อมูลหลักของแผนก
+        // แต่ยังคงเคารพเวลาระดับสถานที่และวันหยุด/วันปิดพิเศษ
+        [$intervals,$counterOverride] = effectiveIntervals($pdo,$department,$date,$customEnabled);
+        $counterCount = $counterOverride ?: (int)$department['counter_count'];
         if($customRule){
             foreach((array)($customRule['periods']??[]) as $period){$startText=(string)($period['start_time']??'');$endText=(string)($period['end_time']??'');if(!preg_match('/^\d{2}:\d{2}$/',$startText)||!preg_match('/^\d{2}:\d{2}$/',$endText))continue;$start=timeToMinutes($startText);$end=timeToMinutes($endText);$customUnlimited=!empty($period['unlimited']);$capacity=$customUnlimited?1:(int)($period['capacity']??0);foreach($intervals as [$open,$close]){$from=max($start,$open);$to=min($end,$close);if($to>$from&&$capacity>0)$slotDefinitions[]=[$from,$to,$capacity,$customUnlimited];}}
         }elseif(!$customEnabled){
@@ -467,7 +469,9 @@ function generateSlots(PDO $pdo, string $date): int
         $slotCount=count($slotDefinitions);if($slotCount<1)continue;$unlimited=(int)($department['unlimited_capacity']??0)===1;$dailyCapacity=(int)($department['daily_capacity']??0);if($dailyCapacity<1)$dailyCapacity=max(1,(int)($service['default_capacity']??1))*$slotCount;$baseCapacity=intdiv($dailyCapacity,$slotCount);$capacityRemainder=$dailyCapacity%$slotCount;
         foreach ($slotDefinitions as $slotIndex=>[$minute,$slotEndMinute,$customCapacity,$customUnlimited]) {
             $capacity = $customCapacity??($baseCapacity+($slotIndex<$capacityRemainder?1:0));
-            $slotUnlimited=$unlimited||$customUnlimited;
+            // กฎ Slot แบบกำหนดเองควบคุมจำนวนรับของแต่ละช่วงโดยตรง
+            // ค่าไม่จำกัดระดับแผนกใช้เฉพาะ Slot รูปแบบเดิมเท่านั้น
+            $slotUnlimited=$customRule?$customUnlimited:$unlimited;
             $online = (int)floor($capacity * (int)$department['online_quota_percent'] / 100);
             $walkin = (int)floor($capacity * (int)$department['walkin_quota_percent'] / 100);
             $reserve = max(0, $capacity - $online - $walkin);
@@ -482,13 +486,13 @@ function generateSlots(PDO $pdo, string $date): int
     return $created;
 }
 
-function effectiveIntervals(PDO $pdo, array $department, string $date): array
+function effectiveIntervals(PDO $pdo, array $department, string $date, bool $useSlotSchedule=false): array
 {
     $weekday=(int)(new DateTimeImmutable($date,new DateTimeZone('Asia/Bangkok')))->format('N');
     $building=(int)($department['building_24']??0)===1?[[0,1440]]:intervalFromTimes($department['building_open']??'00:00',$department['building_close']??'24:00');
     $branch=scopeIntervals($pdo,'BRANCH',(int)$department['branch_id'],$date,$weekday,$department['branch_open'],$department['branch_close']);
     if(!$branch)return [[],null];
-    [$departmentIntervals,$counterOverride,$hasDepartmentRule]=scopeIntervalsWithOverride($pdo,'DEPARTMENT',(int)$department['id'],$date,$weekday);
+    [$departmentIntervals,$counterOverride,$hasDepartmentRule]=scopeIntervalsWithOverride($pdo,'DEPARTMENT',(int)$department['id'],$date,$weekday,!$useSlotSchedule);
     if($hasDepartmentRule&& !$departmentIntervals)return [[],null];
     $result=intersectIntervals($building,$branch);
     if($hasDepartmentRule)$result=intersectIntervals($result,$departmentIntervals);
@@ -501,10 +505,11 @@ function scopeIntervals(PDO $pdo,string $type,int $id,string $date,int $weekday,
     return $hasRule?$intervals:intervalFromTimes($fallbackOpen,$fallbackClose);
 }
 
-function scopeIntervalsWithOverride(PDO $pdo,string $type,int $id,string $date,int $weekday): array
+function scopeIntervalsWithOverride(PDO $pdo,string $type,int $id,string $date,int $weekday,bool $includeWeekly=true): array
 {
     $stmt=$pdo->prepare('SELECT * FROM schedule_overrides WHERE scope_type=? AND scope_id=? AND override_date=? AND active=1');$stmt->execute([$type,$id,$date]);$override=$stmt->fetch();
     if($override){if((int)$override['is_closed']===1)return [[],isset($override['counter_count'])?(int)$override['counter_count']:null,true];return [intervalFromTimes($override['open_time'],$override['close_time']),isset($override['counter_count'])?(int)$override['counter_count']:null,true];}
+    if(!$includeWeekly)return [[],null,false];
     $stmt=$pdo->prepare('SELECT open_time,close_time FROM weekly_hours WHERE scope_type=? AND scope_id=? AND weekday=? AND active=1 ORDER BY interval_order');$stmt->execute([$type,$id,$weekday]);$rows=$stmt->fetchAll();
     if(!$rows){$configured=$pdo->prepare('SELECT 1 FROM weekly_schedule_config WHERE scope_type=? AND scope_id=?');$configured->execute([$type,$id]);return [[],null,(bool)$configured->fetchColumn()];}
     return [array_map(fn($r)=>[timeToMinutes($r['open_time']),timeToMinutes($r['close_time'])],$rows),null,true];

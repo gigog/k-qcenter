@@ -21,7 +21,7 @@ document.getElementById('queueChart').innerHTML = chartData.map((v,i) => `
 
 const views = {
   queues:{title:'Monitor ห้องบัตร',subtitle:'ติดตามการลงทะเบียน เปิด Visit และส่งผู้ป่วยรายแผนก',action:'↻ อัปเดต',type:'table'},
-  capacity:{title:'Slot และกำลังบริการ',subtitle:'กำหนดความจุให้เหมาะสมกับเวลาทำการ',action:'＋ ปรับ Slot',type:'capacity'},
+  capacity:{title:'Slot และกำลังบริการ',subtitle:'แสดงช่วงเวลาและจำนวนรับตามกฎ Slot ที่ใช้จริง',action:'＋ ปรับ Slot',type:'capacity'},
   branches:{title:'สาขาและแผนก',subtitle:'โครงสร้างหน่วยบริการของ K-QCENTER',action:'＋ เพิ่มสาขา',type:'branches'},
   services:{title:'ประเภทบริการ',subtitle:'ระยะเวลา เงื่อนไข และแผนกที่ให้บริการ',action:'＋ เพิ่มบริการ',type:'services'},
   calendar:{title:'ปฏิทินทำการ',subtitle:'เวลาทำการ วันหยุด และ Override รายวัน',action:'＋ เพิ่มวันพิเศษ',type:'calendar'},
