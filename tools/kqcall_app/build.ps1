@@ -11,8 +11,11 @@ if (-not (Test-Path $python)) {
   python -m venv $venv
   if ($LASTEXITCODE -ne 0) { throw 'Unable to create Python virtual environment' }
 }
-Invoke-Checked { & $python -m pip install --upgrade pip } 'pip upgrade'
-Invoke-Checked { & $python -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt') } 'dependency installation'
+& $python -c 'import PySide6, PyInstaller' 2>$null
+if ($LASTEXITCODE -ne 0) {
+  Invoke-Checked { & $python -m pip install --upgrade pip } 'pip upgrade'
+  Invoke-Checked { & $python -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt') } 'dependency installation'
+}
 $output = Join-Path $root 'dist\downloads'
 Invoke-Checked { & $python -m PyInstaller --noconfirm --clean --onefile --windowed `
   --name 'K-QCall' `

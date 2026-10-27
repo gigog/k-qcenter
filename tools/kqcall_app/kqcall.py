@@ -10,19 +10,45 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSettings, QTimer, QUrl, Signal
+from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QRect, QSettings, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QCloseEvent, QCursor, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QPushButton, QSystemTrayIcon
 
 
 APP_NAME = "K-QCall - ระบบเรียกคิว"
 APP_URL = "https://web-lab.tail53909d.ts.net:8443/dist/?registration_app=1"
 SERVER_NAME = "KQCallDesktopSingleInstance"
-EDGE_REVEAL_PIXELS = 10
 AUTO_HIDE_DELAY_MS = 2_000
+
+
+class EdgeHandle(QPushButton):
+    reveal_requested = Signal()
+
+    def __init__(self, icon: QIcon) -> None:
+        super().__init__("◀\nเปิด\nK-QCall")
+        self.setWindowTitle(APP_NAME)
+        self.setWindowIcon(icon)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(54, 136)
+        self.setWindowFlags(
+            Qt.WindowType.Tool
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setStyleSheet(
+            "QPushButton{font-family:'Sarabun';font-size:13px;font-weight:700;"
+            "color:white;background:#0aa995;border:2px solid white;"
+            "border-radius:14px;padding:6px;}"
+            "QPushButton:hover{background:#087f73;}"
+        )
+        self.clicked.connect(self.reveal_requested)
+
+    def enterEvent(self, event: QEvent) -> None:  # noqa: N802 - Qt API
+        super().enterEvent(event)
+        self.reveal_requested.emit()
 
 
 def resource_path(name: str) -> Path:
@@ -87,6 +113,13 @@ class KQCallWindow(QMainWindow):
         self.allow_close = False
         self.normal_geometry = None
         self.outside_since = None
+        self.animation = QPropertyAnimation(self, b"geometry", self)
+        self.animation.setDuration(230)
+        self.animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.animation_mode = ""
+        self.animation.finished.connect(self.on_animation_finished)
+        self.edge_handle = EdgeHandle(icon)
+        self.edge_handle.reveal_requested.connect(self.show_and_activate)
 
         self.tray = QSystemTrayIcon(icon, self)
         self.tray.setToolTip(APP_NAME)
@@ -154,22 +187,44 @@ class KQCallWindow(QMainWindow):
             return
         self.normal_geometry = self.geometry()
         screen = QApplication.screenAt(self.frameGeometry().center()).availableGeometry()
-        frame = self.frameGeometry()
-        self.move(screen.right() - EDGE_REVEAL_PIXELS + 1, frame.y())
         self.hidden_at_edge = True
+        handle_x = screen.right() - self.edge_handle.width() + 1
+        handle_y = screen.top() + max(0, (screen.height() - self.edge_handle.height()) // 2)
+        self.edge_handle.move(handle_x, handle_y)
+        self.edge_handle.show()
+        self.edge_handle.raise_()
+        self.animation.stop()
+        self.animation_mode = "hide"
+        self.animation.setStartValue(self.geometry())
+        self.animation.setEndValue(
+            QRect(screen.right() + 1, self.normal_geometry.y(), self.normal_geometry.width(), self.normal_geometry.height())
+        )
+        self.animation.start()
 
     def show_and_activate(self, refresh: bool = False) -> None:
         if self.isMinimized():
             self.showNormal()
         if self.hidden_at_edge and self.normal_geometry is not None:
-            self.setGeometry(self.normal_geometry)
+            self.edge_handle.hide()
+            start = self.geometry()
             self.hidden_at_edge = False
+            self.animation.stop()
+            self.animation_mode = "show"
+            self.animation.setStartValue(start)
+            self.animation.setEndValue(self.normal_geometry)
+            self.animation.start()
         self.show()
         self.raise_()
         self.activateWindow()
         self.outside_since = None
         if refresh:
             self.web.reload()
+
+    def on_animation_finished(self) -> None:
+        if self.animation_mode == "hide" and self.hidden_at_edge:
+            self.edge_handle.show()
+            self.edge_handle.raise_()
+        self.animation_mode = ""
 
     def handle_second_instance(self, command: str) -> None:
         self.show_and_activate(refresh="refresh" in command)
@@ -179,20 +234,9 @@ class KQCallWindow(QMainWindow):
             return
         cursor = QCursor.pos()
         if self.hidden_at_edge:
-            screen = QApplication.screenAt(cursor)
-            if screen is None:
-                return
-            area = screen.availableGeometry()
-            normal = self.normal_geometry
-            if (
-                cursor.x() >= area.right() - 1
-                and normal is not None
-                and normal.top() <= cursor.y() <= normal.bottom()
-            ):
-                self.show_and_activate()
             return
 
-        if self.geometry().contains(cursor) or self.isActiveWindow():
+        if self.geometry().contains(cursor):
             self.outside_since = None
             self.normal_geometry = self.geometry()
             return
@@ -216,6 +260,7 @@ class KQCallWindow(QMainWindow):
     def exit_application(self) -> None:
         self.allow_close = True
         self.save_geometry()
+        self.edge_handle.hide()
         self.tray.hide()
         self.exiting.emit()
         QApplication.quit()
