@@ -222,6 +222,7 @@ CREATE TABLE IF NOT EXISTS queue_tickets (
   service_completed_at TEXT,
   estimated_wait_minutes INTEGER,
   counter_no INTEGER,
+  call_point_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -287,6 +288,7 @@ SQL);
     ensureColumn($pdo, 'departments', 'custom_slot_config', 'TEXT');
     ensureColumn($pdo, 'slots', 'unlimited_capacity', 'INTEGER NOT NULL DEFAULT 0');
     ensureColumn($pdo, 'queue_tickets', 'counter_no', 'INTEGER');
+    ensureColumn($pdo, 'queue_tickets', 'call_point_id', 'TEXT');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -320,6 +322,7 @@ function migrateMariaDb(PDO $pdo): void
     ensureColumn($pdo, 'departments', 'custom_slot_config', 'LONGTEXT NULL');
     ensureColumn($pdo, 'slots', 'unlimited_capacity', 'TINYINT(1) NOT NULL DEFAULT 0');
     ensureColumn($pdo, 'queue_tickets', 'counter_no', 'TINYINT UNSIGNED NULL');
+    ensureColumn($pdo, 'queue_tickets', 'call_point_id', 'VARCHAR(40) NULL');
     if ((int)$pdo->query('SELECT COUNT(*) FROM buildings')->fetchColumn() === 0) {
         $pdo->exec("INSERT INTO buildings(code,name,is_24_hours,active) VALUES ('MAIN-BLDG','อาคารหลัก',1,1)");
     }
@@ -399,6 +402,22 @@ function featureSettings(PDO $pdo): array
 {
     $stmt=$pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key='system_features'");$stmt->execute();$json=$stmt->fetchColumn();
     if(!$json)return featureDefaults();$decoded=json_decode((string)$json,true);return is_array($decoded)?cleanFeatures($decoded):featureDefaults();
+}
+
+function queueCallPoints(PDO $pdo): array
+{
+    $stmt=$pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key='queue_call_points'");$stmt->execute();$json=$stmt->fetchColumn();
+    if($json===false)return [['id'=>'registration','name'=>'ห้องบัตร','spoken_name'=>'ห้องบัตร','active'=>true,'sort_order'=>0]];
+    $decoded=json_decode((string)$json,true);if(!is_array($decoded))return [];
+    $points=[];foreach($decoded as $index=>$item){if(!is_array($item))continue;$id=preg_replace('/[^A-Za-z0-9_-]/','',(string)($item['id']??''));$name=trim((string)($item['name']??''));$spoken=trim((string)($item['spoken_name']??''));if($id===''||$name==='')continue;$points[]=['id'=>$id,'name'=>$name,'spoken_name'=>$spoken!==''?$spoken:$name,'active'=>!empty($item['active']),'sort_order'=>(int)($item['sort_order']??$index)];}
+    usort($points,fn($a,$b)=>$a['sort_order']<=>$b['sort_order']);return $points;
+}
+
+function cleanQueueCallPoints(array $input): array
+{
+    $items=$input['points']??null;if(!is_array($items)||count($items)>100)throw new InvalidArgumentException('รายการจุดเรียกคิวไม่ถูกต้อง');$result=[];$names=[];
+    foreach($items as $index=>$item){if(!is_array($item))continue;$name=trim((string)($item['name']??''));$spoken=trim((string)($item['spoken_name']??''));if(mb_strlen($name)<2||mb_strlen($name)>80||mb_strlen($spoken)>100)throw new InvalidArgumentException('ชื่อจุดเรียกคิวต้องมี 2–80 ตัวอักษร');$key=mb_strtolower($name);if(isset($names[$key]))throw new InvalidArgumentException('ชื่อจุดเรียกคิวซ้ำกัน');$names[$key]=true;$id=preg_replace('/[^A-Za-z0-9_-]/','',(string)($item['id']??''))?:bin2hex(random_bytes(8));$result[]=['id'=>$id,'name'=>$name,'spoken_name'=>$spoken!==''?$spoken:$name,'active'=>!empty($item['active']),'sort_order'=>$index];}
+    return $result;
 }
 
 function requireFeature(PDO $pdo,string $key): void
