@@ -489,6 +489,15 @@ function generateSlots(PDO $pdo, string $date): int
 function effectiveIntervals(PDO $pdo, array $department, string $date, bool $useSlotSchedule=false): array
 {
     $weekday=(int)(new DateTimeImmutable($date,new DateTimeZone('Asia/Bangkok')))->format('N');
+    if($useSlotSchedule){
+        // กฎ Slot เป็นแหล่งวันและเวลาหลัก ไม่ตัดด้วยเวลาเปิดอาคาร/สาขาเดิม
+        // Calendar override ยังใช้สำหรับปิดบริการและจำนวนจุดบริการประจำวัน
+        [$branchOverride,$branchCounters,$hasBranchOverride]=scopeIntervalsWithOverride($pdo,'BRANCH',(int)$department['branch_id'],$date,$weekday,false);
+        if($hasBranchOverride&&!$branchOverride)return [[],null];
+        [$departmentOverride,$departmentCounters,$hasDepartmentOverride]=scopeIntervalsWithOverride($pdo,'DEPARTMENT',(int)$department['id'],$date,$weekday,false);
+        if($hasDepartmentOverride&&!$departmentOverride)return [[],null];
+        return [[[0,1440]],$departmentCounters??$branchCounters];
+    }
     $building=(int)($department['building_24']??0)===1?[[0,1440]]:intervalFromTimes($department['building_open']??'00:00',$department['building_close']??'24:00');
     $branch=scopeIntervals($pdo,'BRANCH',(int)$department['branch_id'],$date,$weekday,$department['branch_open'],$department['branch_close']);
     if(!$branch)return [[],null];
