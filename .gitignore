@@ -19,3 +19,7 @@ Thumbs.db
 # Logs
 *.log
 
+tools/kqcall_app/.venv/
+tools/kqcall_app/build/
+tools/kqcall_app/*.spec
+dist/downloads/K-QCall.exe
