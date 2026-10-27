@@ -38,9 +38,15 @@ roundedRect($canvas, 192, 388, 320, 422, 17, $white);
 
 $iconDir = dirname(__DIR__) . '/dist/icons';
 imagepng($canvas, $iconDir . '/registration-monitor-icon-512.png', 9);
+$medium = imagecreatetruecolor(256, 256);
+imagecopyresampled($medium, $canvas, 0, 0, 0, 0, 256, 256, 512, 512);
+ob_start();imagepng($medium, null, 9);$png=(string)ob_get_clean();
+$ico=pack('vvv',0,1,1).pack('CCCCvvVV',0,0,0,0,1,32,strlen($png),22).$png;
+file_put_contents($iconDir . '/kqcall.ico', $ico);
 $small = imagecreatetruecolor(192, 192);
 imagecopyresampled($small, $canvas, 0, 0, 0, 0, 192, 192, 512, 512);
 imagepng($small, $iconDir . '/registration-monitor-icon-192.png', 9);
 imagedestroy($small);
+imagedestroy($medium);
 imagedestroy($canvas);
 echo "Monitor icons generated\n";
