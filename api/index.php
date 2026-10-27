@@ -10,6 +10,24 @@ try {
         respond(['ok'=>true,'service'=>'K-QCENTER API','database'=>'connected','time'=>(new DateTimeImmutable('now', new DateTimeZone('Asia/Bangkok')))->format(DATE_ATOM)]);
     }
 
+    if ($action === 'public-features') respond(['ok'=>true,'data'=>featureSettings($pdo)]);
+
+    if ($action === 'feature-settings') {
+        $user=requireAdmin();
+        if($_SERVER['REQUEST_METHOD']==='GET')respond(['ok'=>true,'data'=>featureSettings($pdo),'defaults'=>featureDefaults()]);
+        requireMethod('POST');requireCsrf();$features=cleanFeatures(jsonInput());$json=json_encode($features,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        if($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'){$stmt=$pdo->prepare("INSERT INTO system_settings(setting_key,setting_value,updated_by) VALUES ('system_features',?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value),updated_by=VALUES(updated_by),updated_at=CURRENT_TIMESTAMP");}
+        else{$stmt=$pdo->prepare("INSERT INTO system_settings(setting_key,setting_value,updated_by) VALUES ('system_features',?,?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_by=excluded.updated_by,updated_at=CURRENT_TIMESTAMP");}
+        $stmt->execute([$json,(int)$user['id']]);audit((int)$user['id'],'UPDATE_SYSTEM_FEATURES','system_setting','system_features',$features);respond(['ok'=>true,'data'=>$features]);
+    }
+
+    $featureActions=[
+        'create-booking'=>'online_booking','queue-status'=>'queue_status',
+        'kiosk-walk-in'=>'kiosk','kiosk-check-in'=>'kiosk','kiosk-cancel-queue'=>'kiosk','kiosk-lookup'=>'kiosk','public-kiosk-config'=>'kiosk',
+        'hosxp-link'=>'hosxp_integration','hosxp-status'=>'hosxp_integration','sync-hosxp-holidays'=>'hosxp_integration',
+    ];
+    if(isset($featureActions[$action]))requireFeature($pdo,$featureActions[$action]);
+
     if ($action === 'public-ticket-template') {
         respond(['ok'=>true,'data'=>ticketTemplate($pdo)]);
     }

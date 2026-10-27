@@ -377,6 +377,33 @@ function ticketTemplate(PDO $pdo): array
     if(!$json)return ticketTemplateDefaults();$decoded=json_decode((string)$json,true);return is_array($decoded)?cleanTicketTemplate($decoded):ticketTemplateDefaults();
 }
 
+function featureDefaults(): array
+{
+    return [
+        'kiosk'=>true,'online_booking'=>true,'queue_status'=>true,'smartcard_reader'=>true,
+        'ticket_printing'=>true,'hosxp_integration'=>true,'queue_voice'=>true,'qr_scanning'=>true,
+    ];
+}
+
+function cleanFeatures(array $input): array
+{
+    $out=[];
+    foreach(featureDefaults() as $key=>$default)$out[$key]=filter_var($input[$key]??$default,FILTER_VALIDATE_BOOL);
+    return $out;
+}
+
+function featureSettings(PDO $pdo): array
+{
+    $stmt=$pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key='system_features'");$stmt->execute();$json=$stmt->fetchColumn();
+    if(!$json)return featureDefaults();$decoded=json_decode((string)$json,true);return is_array($decoded)?cleanFeatures($decoded):featureDefaults();
+}
+
+function requireFeature(PDO $pdo,string $key): void
+{
+    $features=featureSettings($pdo);
+    if(empty($features[$key]))fail('ส่วนนี้ถูกปิดใช้งานโดยผู้ดูแลระบบ',503);
+}
+
 function seed(PDO $pdo): void
 {
     $pdo->beginTransaction();
