@@ -364,10 +364,12 @@ try {
         try {
             if ($idempotency) {
                 $stmt=$pdo->prepare('SELECT * FROM bookings WHERE idempotency_key=?'); $stmt->execute([$idempotency]);
-                if ($existing=$stmt->fetch()) { $pdo->exec('COMMIT'); respond(['ok'=>true,'booking'=>['id'=>(int)$existing['id'],'public_id'=>$existing['public_id'],'reference_no'=>$existing['reference_no'],'status'=>$existing['status']],'duplicate'=>true]); }
+                if ($existing=$stmt->fetch()) { $booking=publicBookingPayload($pdo,(int)$existing['id']);$pdo->exec('COMMIT');respond(['ok'=>true,'booking'=>$booking,'duplicate'=>true]); }
             }
             $slot=selectSlotForUpdate($pdo,(int)$in['slot_id']);
             if(!$slot) throw new DomainException('ไม่พบ Slot ที่เปิดใช้งาน');
+            $nowBangkok=new DateTimeImmutable('now',new DateTimeZone('Asia/Bangkok'));$slotEnd=new DateTimeImmutable($slot['slot_date'].' '.$slot['end_time'],new DateTimeZone('Asia/Bangkok'));
+            if($slotEnd<=$nowBangkok)throw new DomainException('ช่วงเวลาเริ่มส่งตรวจนี้สิ้นสุดแล้ว กรุณาเลือกช่วงถัดไป');
             if(empty($slot['unlimited_capacity'])&&(int)$slot['booked_count'] >= (int)$slot['capacity']) throw new DomainException('Slot นี้เต็มแล้ว');
             $source=strtoupper(trim((string)($in['source']??'ONLINE')));if($source!=='ONLINE')throw new DomainException('ช่องทางการจองไม่ถูกต้อง');
             $deviceDayHash=deviceDayHash((string)($in['device_id']??''),(string)$slot['slot_date']);
@@ -380,8 +382,8 @@ try {
             $stmt->execute([$publicId,$reference,(int)$in['slot_id'],trim((string)$in['customer_name']),trim((string)$in['customer_phone']),$source,'CONFIRMED',$idempotency,$citizenHash,$deviceDayHash]);
             $bookingId=(int)$pdo->lastInsertId();
             $pdo->prepare('UPDATE slots SET booked_count=booked_count+1 WHERE id=?')->execute([(int)$in['slot_id']]);
-            $pdo->exec('COMMIT'); audit(null,'CREATE_BOOKING','booking',(string)$bookingId,['reference'=>$reference]);
-            respond(['ok'=>true,'booking'=>['id'=>$bookingId,'public_id'=>$publicId,'reference_no'=>$reference,'status'=>'CONFIRMED']],201);
+            $booking=publicBookingPayload($pdo,$bookingId);$pdo->exec('COMMIT');audit(null,'CREATE_BOOKING','booking',(string)$bookingId,['reference'=>$reference]);
+            respond(['ok'=>true,'booking'=>$booking],201);
         } catch(Throwable $e) { try { $pdo->exec('ROLLBACK'); } catch (Throwable) {} if($e instanceof DomainException) fail($e->getMessage(),409);if($e instanceof PDOException&&$e->getCode()==='23000')fail('อุปกรณ์นี้มีรายการจองออนไลน์สำหรับวันนี้แล้ว กรุณาเปิดเมนูคิวของฉัน',409); throw $e; }
     }
 

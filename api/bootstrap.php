@@ -710,6 +710,17 @@ function selectSlotForUpdate(PDO $pdo, int $slotId): array|false
     $stmt=$pdo->prepare($sql);$stmt->execute([$slotId]);return $stmt->fetch();
 }
 
+function publicBookingPayload(PDO $pdo,int $bookingId): array
+{
+    $stmt=$pdo->prepare('SELECT b.id,b.public_id,b.reference_no,b.status,s.slot_date,s.start_time,s.end_time,s.unlimited_capacity,s.capacity,s.booked_count,d.name department_name,sv.name service_name,br.name branch_name FROM bookings b JOIN slots s ON s.id=b.slot_id JOIN departments d ON d.id=s.department_id JOIN branches br ON br.id=d.branch_id LEFT JOIN services sv ON sv.id=s.service_id WHERE b.id=?');
+    $stmt->execute([$bookingId]);$row=$stmt->fetch();
+    if(!$row)throw new DomainException('ไม่พบรายการจอง');
+    $row['id']=(int)$row['id'];$row['is_unlimited']=(int)$row['unlimited_capacity']===1;
+    $row['available_count']=$row['is_unlimited']?null:max(0,(int)$row['capacity']-(int)$row['booked_count']);
+    unset($row['unlimited_capacity'],$row['capacity'],$row['booked_count']);
+    return $row;
+}
+
 function upsertWeeklyScheduleConfig(PDO $pdo,string $type,int $scopeId): void
 {
     $sql=$pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'
