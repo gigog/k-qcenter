@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$Port = 17891,
     [string[]]$AllowedOrigins = @('https://web-lab.tail53909d.ts.net:8443','http://localhost','http://127.0.0.1')
 )
@@ -37,6 +37,29 @@ public static class KqDirectPrinter {
 }
 '@
 function Reply($stream,[int]$status,[string]$body,[string]$origin){$bytes=[Text.Encoding]::UTF8.GetBytes($body);$text=if($status-eq 200){'OK'}elseif($status-eq 204){'No Content'}elseif($status-eq 403){'Forbidden'}else{'Bad Request'};$headers="HTTP/1.1 $status $text`r`nContent-Type: application/json; charset=utf-8`r`nContent-Length: $($bytes.Length)`r`nAccess-Control-Allow-Origin: $origin`r`nAccess-Control-Allow-Methods: GET, POST, OPTIONS`r`nAccess-Control-Allow-Headers: Content-Type`r`nAccess-Control-Allow-Private-Network: true`r`nVary: Origin, Access-Control-Request-Private-Network`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n";$h=[Text.Encoding]::ASCII.GetBytes($headers);$stream.Write($h,0,$h.Length);if($bytes.Length){$stream.Write($bytes,0,$bytes.Length)};$stream.Flush()}
+function Get-DefaultPrinterHealth {
+    $fallback=[KqDirectPrinter]::DefaultPrinter()
+    if (-not $fallback) { return @{ready=$false;name='';error='ไม่พบเครื่องพิมพ์ Default'} }
+    if ($fallback -match 'Microsoft Print to PDF|Microsoft XPS|OneNote|Fax') { return @{ready=$false;name=$fallback;error='Default Printer ไม่ใช่เครื่องพิมพ์บัตรคิว'} }
+    try {
+        $printer=Get-CimInstance Win32_Printer -ErrorAction Stop | Where-Object Default | Select-Object -First 1
+        if (-not $printer) { return @{ready=$false;name='';error='ไม่พบเครื่องพิมพ์ Default'} }
+        $issues=New-Object Collections.Generic.List[string]
+        if ([string]$printer.Name -match 'Microsoft Print to PDF|Microsoft XPS|OneNote|Fax') { $issues.Add('Default Printer ไม่ใช่เครื่องพิมพ์บัตรคิว') }
+        if ([bool]$printer.WorkOffline) { $issues.Add('เครื่องพิมพ์ Offline') }
+        if ([int]$printer.PrinterStatus -in @(6,7)) { $issues.Add('เครื่องพิมพ์หยุดหรือ Offline') }
+        if ($null-ne $printer.DetectedErrorState -and [int]$printer.DetectedErrorState -notin @(0,1,2)) {
+            $labels=@{3='กระดาษใกล้หมด';4='กระดาษหมด';5='หมึกใกล้หมด';6='หมึกหมด';7='ฝาเครื่องพิมพ์เปิด';8='กระดาษติด';9='เครื่องพิมพ์ Offline';10='ต้องเข้ารับบริการ'}
+            $code=[int]$printer.DetectedErrorState;$issues.Add($(if($labels[$code]){$labels[$code]}else{"เครื่องพิมพ์ขัดข้อง ($code)"}))
+        }
+        $escaped=[WildcardPattern]::Escape([string]$printer.Name)
+        $badJob=Get-CimInstance Win32_PrintJob -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$escaped,*" -and ([string]$_.Status -match 'Error|Offline|PaperOut|Blocked|UserIntervention') } | Select-Object -First 1
+        if ($badJob) { $issues.Add('มีงานพิมพ์ขัดข้องค้างอยู่') }
+        return @{ready=($issues.Count-eq 0);name=[string]$printer.Name;error=($issues -join ', ')}
+    } catch {
+        return @{ready=[bool]$fallback;name=$fallback;error=$(if($fallback){''}else{'ไม่พบเครื่องพิมพ์ Default'})}
+    }
+}
 $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$Port)
 $listener.Start()
 try {
@@ -56,7 +79,7 @@ try {
             $body=''
             if ($length) { $buffer=New-Object char[] $length; $read=0; while($read -lt $length){$n=$reader.Read($buffer,$read,$length-$read);if($n -le 0){break};$read+=$n};$body=-join $buffer }
             if ($request -match '^OPTIONS /(health|print) ') { Reply $stream 204 '' $origin; continue }
-            if ($request -match '^GET /health ') { $printer=[KqDirectPrinter]::DefaultPrinter(); Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=8;printer_ready=[bool]$printer;default_printer=$printer;layout='customizable';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
+            if ($request -match '^GET /health ') { $printer=Get-DefaultPrinterHealth; Reply $stream 200 ((@{ok=$true;service='K-QCENTER Print Agent';agent_version=9;printer_ready=[bool]$printer.ready;default_printer=$printer.name;printer_error=$printer.error;layout='customizable';font='Sarabun'}|ConvertTo-Json -Compress)) $origin; continue }
             if ($request -match '^POST /print ') {
                 try {
                     $wrapper=$body|ConvertFrom-Json
@@ -64,7 +87,9 @@ try {
                     $json=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$wrapper.payload_base64))
                     $ticket=$json|ConvertFrom-Json
                     if (-not $ticket.queue_no -or $ticket.qr_data_url -notmatch '^data:image/(png|gif);base64,') { throw 'ข้อมูลบัตรคิวไม่ถูกต้อง' }
-                    $printer=[KqDirectPrinter]::DefaultPrinter()
+                    $printerHealth=Get-DefaultPrinterHealth
+                    if (-not $printerHealth.ready) { throw 'ไม่พบเครื่องพิมพ์หรือเครื่องพิมพ์ขัดข้อง กรุณาติดต่อเจ้าหน้าที่' }
+                    $printer=[string]$printerHealth.name
                     $t=$ticket.template;if(-not $t){$t=[pscustomobject]@{system_name='K-QCENTER';header_text='บัตรคิวรับบริการห้องบัตร';qr_caption='สแกน QR เพื่อติดตามสถานะคิว';footer_text='โปรดเก็บบัตรนี้ไว้จนกว่าจะรับบริการเสร็จ';show_service=$true;show_slot=$true;show_date=$true;show_reference=$true;show_qr=$true;show_qr_caption=$true;hide_duplicate_service=$true;paper_height=370;qr_size=112;brand_font_size=13;queue_font_size=30;department_font_size=14;service_font_size=11;detail_font_size=10}}
                     [KqDirectPrinter]::Print([string]$ticket.queue_no,[string]$ticket.department,[string]$ticket.service,[string]$ticket.slot,[string]$ticket.date,[string]$ticket.reference,[string]$ticket.token,[string]$ticket.qr_data_url,[string]$t.system_name,[string]$t.header_text,[string]$t.qr_caption,[string]$t.footer_text,[bool]$t.show_service,[bool]$t.show_slot,[bool]$t.show_date,[bool]$t.show_reference,[bool]$t.show_qr,[bool]$t.show_qr_caption,[bool]$t.hide_duplicate_service,[int]$t.paper_height,[int]$t.qr_size,[float]$t.brand_font_size,[float]$t.queue_font_size,[float]$t.department_font_size,[float]$t.service_font_size,[float]$t.detail_font_size)
                     Reply $stream 200 ((@{ok=$true;printed=$true;printer=$printer}|ConvertTo-Json -Compress)) $origin

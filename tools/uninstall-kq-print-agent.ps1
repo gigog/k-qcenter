@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $taskName = 'K-QCENTER Print Agent'
 $targetDir = Join-Path $env:LOCALAPPDATA 'K-QCENTER\PrintAgent'
 $agentTarget = Join-Path $targetDir 'kq-print-agent.ps1'

@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $targetDir = Join-Path $env:LOCALAPPDATA 'K-QCENTER\PrintAgent'
 $agentTarget = Join-Path $targetDir 'kq-print-agent.ps1'
 $hiddenTarget = Join-Path $targetDir 'kq-print-agent-hidden.vbs'
@@ -23,7 +23,7 @@ Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Pr
 Start-Process -FilePath 'wscript.exe' -ArgumentList "`"$hiddenTarget`"" -WindowStyle Hidden
 Start-Sleep -Seconds 2
 $health = Invoke-RestMethod -Uri 'http://127.0.0.1:17891/health' -Headers @{ Origin='https://web-lab.tail53909d.ts.net:8443' } -TimeoutSec 5
-if (-not $health.ok -or [int]$health.agent_version -lt 8) { throw 'Print Agent เริ่มทำงานไม่สำเร็จหรือเป็นรุ่นเก่า' }
+if (-not $health.ok -or [int]$health.agent_version -lt 9) { throw 'Print Agent เริ่มทำงานไม่สำเร็จหรือเป็นรุ่นเก่า' }
 if (-not $health.printer_ready) { throw 'ติดตั้ง Agent แล้ว แต่ Windows ยังไม่มี Default Printer ที่พร้อมใช้งาน' }
 Write-Output 'K-QCENTER Print Agent installed on 127.0.0.1:17891'
 Write-Output "Default printer: $($health.default_printer)"
