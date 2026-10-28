@@ -21,6 +21,8 @@ Thumbs.db
 
 tools/kqcall_app/.venv/
 tools/kqcall_app/build/
+tools/kqcall_app/build-kiosk/
 tools/kqcall_app/*.spec
 tools/kqcall_app/__pycache__/
 dist/downloads/K-QCall.exe
+dist/downloads/K-QKiosk.exe
